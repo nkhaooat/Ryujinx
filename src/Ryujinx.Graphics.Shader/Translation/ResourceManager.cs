@@ -48,12 +48,22 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int LocalMemoryId { get; private set; }
         public int SharedMemoryId { get; private set; }
 
+        public int LocalVertexDataMemoryId { get; private set; }
+
         public ShaderProperties Properties { get; }
 
-        public ResourceManager(ShaderStage stage, IGpuAccessor gpuAccessor)
+        public ResourceReservations Reservations { get; }
+
+        public ResourceManager(
+            ShaderStage stage,
+            IGpuAccessor gpuAccessor,
+            bool isTransformFeedbackEmulated = false,
+            bool vertexAsCompute = false,
+            int vacOutputMap = 0)
         {
             _gpuAccessor = gpuAccessor;
             Properties = new();
+            Reservations = new(isTransformFeedbackEmulated, vertexAsCompute, vacOutputMap);
             _stage = stage;
             _stagePrefix = GetShaderStagePrefix(stage);
 
@@ -74,6 +84,8 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             LocalMemoryId = -1;
             SharedMemoryId = -1;
+
+            LocalVertexDataMemoryId = -1;
         }
 
         public void SetCurrentLocalMemory(int size, bool isUsed)
@@ -111,6 +123,16 @@ namespace Ryujinx.Graphics.Shader.Translation
             else
             {
                 SharedMemoryId = -1;
+            }
+        }
+
+        public void SetVertexAsComputeLocalMemories()
+        {
+            if (LocalVertexDataMemoryId < 0)
+            {
+                var lmem = new MemoryDefinition("local_vertex_data", AggregateType.Array | AggregateType.FP32, Reservations.OutputSizePerInvocation);
+
+                LocalVertexDataMemoryId = Properties.AddLocalMemory(lmem);
             }
         }
 

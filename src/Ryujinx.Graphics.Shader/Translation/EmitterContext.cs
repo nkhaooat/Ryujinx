@@ -71,12 +71,40 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private void EmitStart()
         {
-            if (TranslatorContext.Definitions.Stage == ShaderStage.Vertex &&
-                TranslatorContext.Options.TargetApi == TargetApi.Vulkan &&
-                (TranslatorContext.Options.Flags & TranslationFlags.VertexA) == 0)
+            if (TranslatorContext.Options.Flags.HasFlag(TranslationFlags.VertexA))
+            {
+                return;
+            }
+
+            if (TranslatorContext.Definitions.Stage == ShaderStage.Vertex && TranslatorContext.Options.TargetApi == TargetApi.Vulkan)
             {
                 // Vulkan requires the point size to be always written on the shader if the primitive topology is points.
                 this.Store(StorageKind.Output, IoVariable.PointSize, null, ConstF(TranslatorContext.Definitions.PointSize));
+            }
+
+            if (TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
+            {
+                int vertexInfoCbBinding = ResourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+
+                Operand outputVertexOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
+                Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(0));
+                Operand isVertexOob = this.ICompareGreaterOrEqualUnsigned(outputVertexOffset, vertexCount);
+
+                Operand lblVertexInBounds = Label();
+
+                this.BranchIfFalse(lblVertexInBounds, isVertexOob);
+                this.Return();
+                this.MarkLabel(lblVertexInBounds);
+
+                Operand outputInstanceOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
+                Operand instanceCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(1));
+                Operand isInstanceOob = this.ICompareGreaterOrEqualUnsigned(outputInstanceOffset, instanceCount);
+
+                Operand lblInstanceInBounds = Label();
+
+                this.BranchIfFalse(lblInstanceInBounds, isInstanceOob);
+                this.Return();
+                this.MarkLabel(lblInstanceInBounds);
             }
         }
 
@@ -168,14 +196,16 @@ namespace Ryujinx.Graphics.Shader.Translation
         {
             if (!TranslatorContext.GpuAccessor.QueryHostSupportsTransformFeedback() && TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled())
             {
-                Operand vertexCount = this.Load(StorageKind.StorageBuffer, Constants.TfeInfoBinding, Const(1));
+                int tfeInfoBinding = ResourceManager.Reservations.GetTfeInfoStorageBufferBinding();
 
-                for (int tfbIndex = 0; tfbIndex < Constants.TfeBuffersCount; tfbIndex++)
+                Operand vertexCount = this.Load(StorageKind.StorageBuffer, tfeInfoBinding, Const(1));
+
+                for (int tfbIndex = 0; tfbIndex < ResourceReservations.TfeBuffersCount; tfbIndex++)
                 {
                     var locations = TranslatorContext.GpuAccessor.QueryTransformFeedbackVaryingLocations(tfbIndex);
                     var stride = TranslatorContext.GpuAccessor.QueryTransformFeedbackStride(tfbIndex);
 
-                    Operand baseOffset = this.Load(StorageKind.StorageBuffer, Constants.TfeInfoBinding, Const(0), Const(tfbIndex));
+                    Operand baseOffset = this.Load(StorageKind.StorageBuffer, tfeInfoBinding, Const(0), Const(tfbIndex));
                     Operand baseVertex = this.Load(StorageKind.Input, IoVariable.BaseVertex);
                     Operand baseInstance = this.Load(StorageKind.Input, IoVariable.BaseInstance);
                     Operand vertexIndex = this.Load(StorageKind.Input, IoVariable.VertexIndex);
@@ -200,7 +230,9 @@ namespace Ryujinx.Graphics.Shader.Translation
                         Operand offset = this.IAdd(baseOffset, Const(j));
                         Operand value = Instructions.AttributeMap.GenerateAttributeLoad(this, null, location * 4, isOutput: true, isPerPatch: false);
 
-                        this.Store(StorageKind.StorageBuffer, Constants.TfeBufferBaseBinding + tfbIndex, Const(0), offset, value);
+                        int binding = ResourceManager.Reservations.GetTfeBufferStorageBufferBinding(tfbIndex);
+
+                        this.Store(StorageKind.StorageBuffer, binding, Const(0), offset, value);
                     }
                 }
             }
@@ -234,6 +266,30 @@ namespace Ryujinx.Graphics.Shader.Translation
                 Operand layer = this.Load(StorageKind.Output, IoVariable.UserDefined, null, Const(attrVecIndex), Const(attrComponentIndex));
 
                 this.Store(StorageKind.Output, IoVariable.Layer, null, layer);
+            }
+
+            if (TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
+            {
+                int vertexInfoCbBinding = ResourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+                int vertexOutputSbBinding = ResourceManager.Reservations.GetVertexOutputStorageBufferBinding();
+                int stride = ResourceManager.Reservations.OutputSizePerInvocation;
+
+                Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(0));
+
+                Operand outputVertexOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
+                Operand outputInstanceOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
+
+                Operand outputBaseVertex = this.IMultiply(outputInstanceOffset, vertexCount);
+
+                Operand baseOffset = this.IMultiply(this.IAdd(outputBaseVertex, outputVertexOffset), Const(stride));
+
+                for (int offset = 0; offset < stride; offset++)
+                {
+                    Operand vertexOffset = this.IAdd(baseOffset, Const(offset));
+                    Operand value = this.Load(StorageKind.LocalMemory, ResourceManager.LocalVertexDataMemoryId, Const(offset));
+
+                    this.Store(StorageKind.StorageBuffer, vertexOutputSbBinding, Const(0), vertexOffset, value);
+                }
             }
         }
 
