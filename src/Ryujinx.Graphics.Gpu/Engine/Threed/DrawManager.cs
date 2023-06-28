@@ -190,13 +190,13 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
                 _channel.BufferManager.SetIndexBuffer(br, IndexType.UInt);
 
-                _context.Renderer.Pipeline.DrawIndexed(inlineIndexCount, 1, firstIndex, firstVertex, firstInstance);
+                DrawImpl(inlineIndexCount, 1, firstIndex, firstVertex, firstInstance, indexed: true);
             }
             else if (_drawState.DrawIndexed)
             {
                 int firstVertex = (int)_state.State.FirstVertex;
 
-                _context.Renderer.Pipeline.DrawIndexed(indexCount, 1, firstIndex, firstVertex, firstInstance);
+                DrawImpl(indexCount, 1, firstIndex, firstVertex, firstInstance, indexed: true);
             }
             else
             {
@@ -204,7 +204,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 var drawState = _state.State.VertexBufferDrawState;
 #pragma warning restore IDE0059
 
-                _context.Renderer.Pipeline.Draw(drawVertexCount, 1, drawFirstVertex, firstInstance);
+                DrawImpl(drawVertexCount, 1, 0, drawFirstVertex, firstInstance, indexed: false);
             }
 
             _drawState.DrawIndexed = false;
@@ -541,6 +541,35 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
             engine.UpdateState();
 
+            DrawImpl(count, instanceCount, firstIndex, firstVertex, firstInstance, indexed);
+
+            _state.State.FirstInstance = 0;
+
+            _drawState.DrawIndexed = false;
+
+            if (renderEnable == ConditionalRenderEnabled.Host)
+            {
+                _context.Renderer.Pipeline.EndHostConditionalRendering();
+            }
+        }
+
+        /// <summary>
+        /// Performs a indexed or non-indexed draw.
+        /// </summary>
+        /// <param name="count">Index count for indexed draws, vertex count for non-indexed draws</param>
+        /// <param name="instanceCount">Instance count</param>
+        /// <param name="firstIndex">First index on the index buffer for indexed draws, ignored for non-indexed draws</param>
+        /// <param name="firstVertex">First vertex on the vertex buffer</param>
+        /// <param name="firstInstance">First instance</param>
+        /// <param name="indexed">True if the draw is indexed, false otherwise</param>
+        public void DrawImpl(
+            int count,
+            int instanceCount,
+            int firstIndex,
+            int firstVertex,
+            int firstInstance,
+            bool indexed)
+        {
             if (instanceCount > 1)
             {
                 // Must be called after UpdateState as it assumes the shader state
@@ -557,15 +586,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             else
             {
                 _context.Renderer.Pipeline.Draw(count, instanceCount, firstVertex, firstInstance);
-            }
-
-            _state.State.FirstInstance = 0;
-
-            _drawState.DrawIndexed = false;
-
-            if (renderEnable == ConditionalRenderEnabled.Host)
-            {
-                _context.Renderer.Pipeline.EndHostConditionalRendering();
             }
         }
 
@@ -674,36 +694,34 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             {
                 _instancedDrawPending = false;
 
+                int instanceCount = _instanceIndex + 1;
+                int firstInstance = _instancedFirstInstance;
                 bool indexedInline = _instancedIndexedInline;
 
                 if (_instancedIndexed || indexedInline)
                 {
+                    int indexCount = _instancedIndexCount;
+
                     if (indexedInline)
                     {
                         int inlineIndexCount = _drawState.IbStreamer.GetAndResetInlineIndexCount(_context.Renderer);
                         BufferRange br = new(_drawState.IbStreamer.GetInlineIndexBuffer(), 0, inlineIndexCount * 4);
 
                         _channel.BufferManager.SetIndexBuffer(br, IndexType.UInt);
+                        indexCount = inlineIndexCount;
                     }
 
-                    _channel.BufferManager.SetInstancedDrawVertexCount(_instancedIndexCount);
+                    int firstIndex = _instancedFirstIndex;
+                    int firstVertex = _instancedFirstVertex;
 
-                    _context.Renderer.Pipeline.DrawIndexed(
-                        _instancedIndexCount,
-                        _instanceIndex + 1,
-                        _instancedFirstIndex,
-                        _instancedFirstVertex,
-                        _instancedFirstInstance);
+                    DrawImpl(indexCount, instanceCount, firstIndex, firstVertex, firstInstance, indexed: true);
                 }
                 else
                 {
-                    _channel.BufferManager.SetInstancedDrawVertexCount(_instancedDrawStateCount);
+                    int vertexCount = _instancedDrawStateCount;
+                    int firstVertex = _instancedDrawStateFirst;
 
-                    _context.Renderer.Pipeline.Draw(
-                        _instancedDrawStateCount,
-                        _instanceIndex + 1,
-                        _instancedDrawStateFirst,
-                        _instancedFirstInstance);
+                    DrawImpl(vertexCount, instanceCount, 0, firstVertex, firstInstance, indexed: false);
                 }
             }
         }
