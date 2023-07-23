@@ -49,7 +49,8 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int SharedMemoryId { get; private set; }
 
         public int LocalVertexDataMemoryId { get; private set; }
-        public int LocalVertexIndexMemoryId { get; private set; }
+        public int LocalVertexIndexVertexRateMemoryId { get; private set; }
+        public int LocalVertexIndexInstanceRateMemoryId { get; private set; }
 
         public ShaderProperties Properties { get; }
 
@@ -87,7 +88,8 @@ namespace Ryujinx.Graphics.Shader.Translation
             SharedMemoryId = -1;
 
             LocalVertexDataMemoryId = -1;
-            LocalVertexIndexMemoryId = -1;
+            LocalVertexIndexVertexRateMemoryId = -1;
+            LocalVertexIndexInstanceRateMemoryId = -1;
         }
 
         public void SetCurrentLocalMemory(int size, bool isUsed)
@@ -137,11 +139,18 @@ namespace Ryujinx.Graphics.Shader.Translation
                 LocalVertexDataMemoryId = Properties.AddLocalMemory(lmem);
             }
 
-            if (LocalVertexIndexMemoryId < 0)
+            if (LocalVertexIndexVertexRateMemoryId < 0)
             {
-                var lmem = new MemoryDefinition("local_vertex_index", AggregateType.U32);
+                var lmem = new MemoryDefinition("local_vertex_index_vr", AggregateType.U32);
 
-                LocalVertexIndexMemoryId = Properties.AddLocalMemory(lmem);
+                LocalVertexIndexVertexRateMemoryId = Properties.AddLocalMemory(lmem);
+            }
+
+            if (LocalVertexIndexInstanceRateMemoryId < 0)
+            {
+                var lmem = new MemoryDefinition("local_vertex_index_ir", AggregateType.U32);
+
+                LocalVertexIndexInstanceRateMemoryId = Properties.AddLocalMemory(lmem);
             }
         }
 

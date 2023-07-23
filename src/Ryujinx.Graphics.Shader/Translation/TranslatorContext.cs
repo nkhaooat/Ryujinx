@@ -427,6 +427,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 {
                     new StructureField(AggregateType.Vector4 | AggregateType.U32, "counts"),
                     new StructureField(AggregateType.Array | AggregateType.Vector4 | AggregateType.U32, "vertex_strides", ResourceReservations.MaxVertexBufferTextures),
+                    new StructureField(AggregateType.Array | AggregateType.U32, "vertex_divisors", ResourceReservations.MaxVertexBufferTextures),
                 });
 
                 int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();

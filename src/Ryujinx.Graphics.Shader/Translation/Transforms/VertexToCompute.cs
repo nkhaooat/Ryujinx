@@ -115,11 +115,28 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
 
         private static Operand GenerateVertexOffset(ResourceManager resourceManager, LinkedListNode<INode> node, int location, int component)
         {
+            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+
+            Operand vertexIdVr = Local();
+            GenerateVertexIdVertexRateLoad(resourceManager, node, vertexIdVr);
+
+            Operand vertexIdIr = Local();
+            GenerateVertexIdInstanceRateLoad(resourceManager, node, vertexIdIr);
+
+            Operand isInstanceRate = Local();
+            node.List.AddBefore(node, new Operation(
+                Instruction.Load,
+                StorageKind.ConstantBuffer,
+                isInstanceRate,
+                new[] { Const(vertexInfoCbBinding), Const(2), Const(location) }));
+
             Operand vertexId = Local();
-            GenerateVertexIdLoad(resourceManager, node, vertexId);
+            node.List.AddBefore(node, new Operation(
+                Instruction.ConditionalSelect,
+                vertexId,
+                new[] { isInstanceRate, vertexIdIr, vertexIdVr }));
 
             Operand vertexStride = Local();
-            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
             node.List.AddBefore(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
@@ -195,7 +212,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand vertexId = Local();
 
             GenerateBaseVertexLoad(resourceManager, node, baseVertex);
-            GenerateVertexIdLoad(resourceManager, node, vertexId);
+            GenerateVertexIdVertexRateLoad(resourceManager, node, vertexId);
 
             return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseVertex, vertexId }));
         }
@@ -216,9 +233,16 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseInstance, instanceId }));
         }
 
-        private static LinkedListNode<INode> GenerateVertexIdLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
+        private static LinkedListNode<INode> GenerateVertexIdVertexRateLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
         {
-            Operand[] sources = new Operand[] { Const(resourceManager.LocalVertexIndexMemoryId) };
+            Operand[] sources = new Operand[] { Const(resourceManager.LocalVertexIndexVertexRateMemoryId) };
+
+            return node.List.AddBefore(node, new Operation(Instruction.Load, StorageKind.LocalMemory, dest, sources));
+        }
+
+        private static LinkedListNode<INode> GenerateVertexIdInstanceRateLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
+        {
+            Operand[] sources = new Operand[] { Const(resourceManager.LocalVertexIndexInstanceRateMemoryId) };
 
             return node.List.AddBefore(node, new Operation(Instruction.Load, StorageKind.LocalMemory, dest, sources));
         }

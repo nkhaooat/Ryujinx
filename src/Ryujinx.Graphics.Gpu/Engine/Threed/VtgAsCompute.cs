@@ -84,7 +84,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         {
             _context.Renderer.Pipeline.SetProgram(computeProgram.HostProgram);
 
-            Span<int> vertexInfo = stackalloc int[4 + 4 * Constants.TotalVertexAttribs];
+            Span<int> vertexInfo = stackalloc int[4 + 32 * 4 * 2];
 
             vertexInfo[0] = count;
             vertexInfo[1] = instanceCount;
@@ -111,7 +111,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
                 for (int c = 1; c < componentsCount; c++)
                 {
-                    vertexInfo[4 + index * 4 + c] = -1;
+                    vertexInfo[4 + index * 4 + c] = 1;
                 }
 
                 if (vertexAttrib.UnpackIsConstant())
@@ -148,6 +148,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 SetBufferTexture(computeProgram.Reservations, index, format, address, vbSize);
 
                 vertexInfo[4 + index * 4] = vbStride / componentSize;
+                vertexInfo[4 + 32 * 4 + index * 4] = instanced ? vertexBuffer.Divisor : 0;
             }
 
             if (indexed)
@@ -176,7 +177,13 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
             _context.Renderer.Pipeline.SetProgram(vertexPassthroughProgram);
 
+            // For instanced draws, we need to ensure that strip topologies will
+            // restart on each new instance.
+            _context.Renderer.Pipeline.SetPrimitiveRestart(true, count);
             _context.Renderer.Pipeline.Draw(count * instanceCount, 1, 0, 0);
+
+            // TODO: Properly restore state.
+            _context.Renderer.Pipeline.SetPrimitiveRestart(false, 0);
         }
 
         private void SetDummyBufferTexture(ResourceReservations reservations, int index, Format format)
