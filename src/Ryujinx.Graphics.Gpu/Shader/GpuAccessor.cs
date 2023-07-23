@@ -25,11 +25,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <param name="channel">GPU channel</param>
         /// <param name="state">Current GPU state</param>
         /// <param name="stageIndex">Graphics shader stage index (0 = Vertex, 4 = Fragment)</param>
+        /// <param name="vertexAsCompute">Indicates that the vertex shader will be emulated on a compute shader</param>
         public GpuAccessor(
             GpuContext context,
             GpuChannel channel,
             GpuAccessorState state,
-            int stageIndex) : base(context, state.ResourceCounts, stageIndex, state.TransformFeedbackDescriptors != null)
+            int stageIndex,
+            bool vertexAsCompute) : base(context, state.ResourceCounts, stageIndex, state.TransformFeedbackDescriptors != null, vertexAsCompute)
         {
             _isVulkan = context.Capabilities.Api == TargetApi.Vulkan;
             _channel = channel;

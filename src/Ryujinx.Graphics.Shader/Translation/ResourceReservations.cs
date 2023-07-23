@@ -5,7 +5,7 @@ using System.Numerics;
 
 namespace Ryujinx.Graphics.Shader.Translation
 {
-    class ResourceReservations
+    public class ResourceReservations
     {
         public const int TfeBuffersCount = 4;
 
@@ -27,9 +27,9 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private readonly Dictionary<IoDefinition, int> _outputOffsets;
 
-        public IReadOnlyDictionary<IoDefinition, int> OutputOffsets => _outputOffsets;
+        internal IReadOnlyDictionary<IoDefinition, int> OutputOffsets => _outputOffsets;
 
-        public ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute, int vacOutputMap)
+        internal ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute, int vacOutputMap)
         {
             // All stages reserves the first constant buffer binding for the support buffer.
             ReservedConstantBuffers = 1;
@@ -59,7 +59,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 ReservedTextures += 1 + MaxVertexBufferTextures;
             }
 
-            _outputOffsets = new Dictionary<IoDefinition, int>();
+            _outputOffsets = new();
 
             if (vertexAsCompute)
             {
@@ -69,6 +69,8 @@ namespace Ryujinx.Graphics.Shader.Translation
                 {
                     _outputOffsets.Add(new IoDefinition(StorageKind.Output, IoVariable.Position, 0, c), offset++);
                 }
+
+                _outputOffsets.Add(new IoDefinition(StorageKind.Output, IoVariable.PointSize), offset++);
 
                 while (vacOutputMap != 0)
                 {
@@ -84,6 +86,15 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                 OutputSizePerInvocation = offset;
             }
+        }
+
+        internal static bool IsVectorVariable(IoVariable variable)
+        {
+            return variable switch
+            {
+                IoVariable.Position => true,
+                _ => false,
+            };
         }
 
         public int GetTfeInfoStorageBufferBinding()
@@ -116,17 +127,17 @@ namespace Ryujinx.Graphics.Shader.Translation
             return _vertexBufferTextureBaseBinding + vaLocation;
         }
 
-        public bool TryGetOutputOffset(int location, int component, out int offset)
+        internal bool TryGetOutputOffset(int location, int component, out int offset)
         {
             return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, IoVariable.UserDefined, location, component), out offset);
         }
 
-        public bool TryGetOutputOffset(IoVariable ioVariable, int component, out int offset)
+        internal bool TryGetOutputOffset(IoVariable ioVariable, int component, out int offset)
         {
             return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, ioVariable, 0, component), out offset);
         }
 
-        public bool TryGetOutputOffset(IoVariable ioVariable, out int offset)
+        internal bool TryGetOutputOffset(IoVariable ioVariable, out int offset)
         {
             return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, ioVariable, 0, 0), out offset);
         }

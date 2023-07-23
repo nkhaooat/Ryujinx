@@ -105,6 +105,18 @@ namespace Ryujinx.Graphics.Shader.Translation
                 this.BranchIfFalse(lblInstanceInBounds, isInstanceOob);
                 this.Return();
                 this.MarkLabel(lblInstanceInBounds);
+
+                Operand vertexIndex = Local();
+
+                this.TextureSample(
+                    SamplerType.TextureBuffer,
+                    TextureFlags.IntCoords,
+                    ResourceManager.Reservations.GetIndexBufferTextureBinding(),
+                    1,
+                    new[] { vertexIndex },
+                    new[] { outputVertexOffset });
+
+                this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexMemoryId, vertexIndex);
             }
         }
 

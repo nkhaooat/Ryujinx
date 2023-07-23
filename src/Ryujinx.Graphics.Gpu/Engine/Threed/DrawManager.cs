@@ -20,6 +20,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         private readonly DeviceStateWithShadow<ThreedClassState> _state;
         private readonly DrawState _drawState;
         private readonly SpecializationStateUpdater _currentSpecState;
+        private readonly VtgAsCompute _vtgAsCompute;
         private bool _topologySet;
 
         private bool _instancedDrawPending;
@@ -53,6 +54,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             _state = state;
             _drawState = drawState;
             _currentSpecState = spec;
+            _vtgAsCompute = new(context, channel, state);
         }
 
         /// <summary>
@@ -578,14 +580,35 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 _channel.BufferManager.SetInstancedDrawVertexCount(count);
             }
 
-            if (indexed)
+            if (_drawState.VertexAsCompute != null)
             {
-                _context.Renderer.Pipeline.DrawIndexed(count, instanceCount, firstIndex, firstVertex, firstInstance);
-                _state.State.FirstVertex = 0;
+                _vtgAsCompute.DrawAsCompute(
+                    _drawState.VertexAsCompute,
+                    _drawState.VertexPassthrough,
+                    count,
+                    instanceCount,
+                    firstIndex,
+                    firstVertex,
+                    firstInstance,
+                    indexed);
+
+                if (indexed)
+                {
+                    // TODO: Should we really be setting that to 0 in all cases?
+                    _state.State.FirstVertex = 0;
+                }
             }
             else
             {
-                _context.Renderer.Pipeline.Draw(count, instanceCount, firstVertex, firstInstance);
+                if (indexed)
+                {
+                    _context.Renderer.Pipeline.DrawIndexed(count, instanceCount, firstIndex, firstVertex, firstInstance);
+                    _state.State.FirstVertex = 0; // TODO: Should we really be setting that to 0 in all cases?
+                }
+                else
+                {
+                    _context.Renderer.Pipeline.Draw(count, instanceCount, firstVertex, firstInstance);
+                }
             }
         }
 

@@ -217,7 +217,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             GpuAccessor gpuAccessor = new(_context, channel, gpuAccessorState);
 
             TranslatorContext translatorContext = DecodeComputeShader(gpuAccessor, _context.Capabilities.Api, gpuVa);
-            TranslatedShader translatedShader = TranslateShader(_dumper, channel, translatorContext, cachedGuestCode);
+            TranslatedShader translatedShader = TranslateShader(_dumper, channel, translatorContext, cachedGuestCode, asCompute: false);
 
             ShaderSource[] shaderSourcesArray = new ShaderSource[] { CreateShaderSource(translatedShader.Program) };
             ShaderInfo info = ShaderInfoBuilder.BuildForCompute(_context, translatedShader.Program.Info);
@@ -332,7 +332,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                 if (gpuVa != 0)
                 {
-                    GpuAccessor gpuAccessor = new(_context, channel, gpuAccessorState, stageIndex);
+                    GpuAccessor gpuAccessor = new(_context, channel, gpuAccessorState, stageIndex, ShouldConvertVertexToCompute());
                     TranslatorContext currentStage = DecodeGraphicsShader(gpuAccessor, api, DefaultFlags, gpuVa);
 
                     if (nextStage != null)
@@ -360,7 +360,9 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             TranslatorContext previousStage = null;
 
-            ShaderInfoBuilder infoBuilder = new(_context, transformFeedbackDescriptors != null);
+            ShaderInfoBuilder infoBuilder = new(_context, transformFeedbackDescriptors != null, ShouldConvertVertexToCompute());
+
+            ShaderAsCompute vertexAsCompute = null;
 
             for (int stageIndex = 0; stageIndex < Constants.ShaderStages; stageIndex++)
             {
@@ -370,6 +372,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 {
                     ShaderProgram program;
 
+                    bool asCompute = stageIndex == 0 && ShouldConvertVertexToCompute();
+
                     if (stageIndex == 0 && translatorContexts[0] != null)
                     {
                         TranslatedShaderVertexPair translatedShader = TranslateShader(
@@ -378,7 +382,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
                             currentStage,
                             translatorContexts[0],
                             cachedGuestCode.VertexACode,
-                            cachedGuestCode.VertexBCode);
+                            cachedGuestCode.VertexBCode,
+                            asCompute);
 
                         shaders[0] = translatedShader.VertexA;
                         shaders[1] = translatedShader.VertexB;
@@ -388,10 +393,16 @@ namespace Ryujinx.Graphics.Gpu.Shader
                     {
                         byte[] code = cachedGuestCode.GetByIndex(stageIndex);
 
-                        TranslatedShader translatedShader = TranslateShader(_dumper, channel, currentStage, code);
+                        TranslatedShader translatedShader = TranslateShader(_dumper, channel, currentStage, code, asCompute);
 
                         shaders[stageIndex + 1] = translatedShader.Shader;
                         program = translatedShader.Program;
+                    }
+
+                    if (asCompute)
+                    {
+                        vertexAsCompute = CreateHostVertexAsComputeProgram(program, currentStage);
+                        program = currentStage.GenerateVertexPassthroughForCompute();
                     }
 
                     if (program != null)
@@ -418,13 +429,27 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             IProgram hostProgram = _context.Renderer.CreateProgram(shaderSourcesArray, info);
 
-            gpShaders = new CachedShaderProgram(hostProgram, specState, shaders);
+            gpShaders = new CachedShaderProgram(hostProgram, vertexAsCompute, specState, shaders);
 
             _graphicsShaderCache.Add(gpShaders);
             EnqueueProgramToSave(gpShaders, hostProgram, shaderSourcesArray);
             _gpPrograms[addresses] = gpShaders;
 
             return gpShaders;
+        }
+
+        private bool ShouldConvertVertexToCompute()
+        {
+            // TODO: Implement this, set to true for testing for now.
+            return true;
+        }
+
+        private ShaderAsCompute CreateHostVertexAsComputeProgram(ShaderProgram program, TranslatorContext context)
+        {
+            ShaderSource source = new(program.Code, program.BinaryCode, program.Info.Stage, program.Language);
+            ShaderInfo info = ShaderInfoBuilder.BuildForCompute(_context, program.Info, vertexAsCompute: true);
+
+            return new(_context.Renderer.CreateProgram(new[] { source }, info), program.Info, context.GetResourceReservations());
         }
 
         /// <summary>
@@ -636,6 +661,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <param name="vertexA">Optional translator context of the shader that should be combined</param>
         /// <param name="codeA">Optional Maxwell binary code of the Vertex A shader, if present</param>
         /// <param name="codeB">Optional Maxwell binary code of the Vertex B or current stage shader, if present on cache</param>
+        /// <param name="asCompute">Indicates that the vertex shader should be converted to a compute shader</param>
         /// <returns>Compiled graphics shader code</returns>
         private static TranslatedShaderVertexPair TranslateShader(
             ShaderDumper dumper,
@@ -643,7 +669,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
             TranslatorContext currentStage,
             TranslatorContext vertexA,
             byte[] codeA,
-            byte[] codeB)
+            byte[] codeB,
+            bool asCompute)
         {
             ulong cb1DataAddress = channel.BufferManager.GetGraphicsUniformBufferAddress(0, 1);
 
@@ -663,7 +690,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 pathsB = dumper.Dump(codeB, compute: false);
             }
 
-            ShaderProgram program = currentStage.Translate(vertexA);
+            ShaderProgram program = currentStage.Translate(vertexA, asCompute);
 
             pathsB.Prepend(program);
             pathsA.Prepend(program);
@@ -681,8 +708,9 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <param name="channel">GPU channel using the shader</param>
         /// <param name="context">Translator context of the stage to be translated</param>
         /// <param name="code">Optional Maxwell binary code of the current stage shader, if present on cache</param>
+        /// <param name="asCompute">Indicates that the vertex shader should be converted to a compute shader</param>
         /// <returns>Compiled graphics shader code</returns>
-        private static TranslatedShader TranslateShader(ShaderDumper dumper, GpuChannel channel, TranslatorContext context, byte[] code)
+        private static TranslatedShader TranslateShader(ShaderDumper dumper, GpuChannel channel, TranslatorContext context, byte[] code, bool asCompute)
         {
             var memoryManager = channel.MemoryManager;
 
@@ -694,7 +722,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             code ??= memoryManager.GetSpan(context.Address, context.Size).ToArray();
 
             ShaderDumpPaths paths = dumper?.Dump(code, context.Stage == ShaderStage.Compute) ?? default;
-            ShaderProgram program = context.Translate();
+            ShaderProgram program = context.Translate(asCompute);
 
             paths.Prepend(program);
 

@@ -1440,6 +1440,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 _fsReadsFragCoord = false;
             }
 
+            if (gs.VertexAsCompute != null)
+            {
+                _drawState.VertexAsCompute = gs.VertexAsCompute;
+                _drawState.VertexPassthrough = gs.HostProgram;
+            }
+
             _context.Renderer.Pipeline.SetProgram(gs.HostProgram);
         }
 

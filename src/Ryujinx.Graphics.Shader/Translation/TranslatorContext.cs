@@ -426,7 +426,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 StructureType vertexInfoStruct = new(new StructureField[]
                 {
                     new StructureField(AggregateType.Vector4 | AggregateType.U32, "counts"),
-                    new StructureField(AggregateType.Array | AggregateType.U32, "vertex_strides", ResourceReservations.MaxVertexBufferTextures)
+                    new StructureField(AggregateType.Array | AggregateType.Vector4 | AggregateType.U32, "vertex_strides", ResourceReservations.MaxVertexBufferTextures),
                 });
 
                 int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
@@ -442,12 +442,17 @@ namespace Ryujinx.Graphics.Shader.Translation
                 BufferDefinition vertexOutputBuffer = new(BufferLayout.Std430, 1, vertexOutputSbBinding, "vertex_output", vertexOutputStruct);
                 resourceManager.Properties.AddOrUpdateStorageBuffer(vertexOutputBuffer);
 
+                int ibBinding = resourceManager.Reservations.GetIndexBufferTextureBinding();
+                TextureDefinition indexBuffer = new(2, ibBinding, "ib_data", SamplerType.TextureBuffer, TextureFormat.Unknown, TextureUsageFlags.None);
+
+                resourceManager.Properties.AddOrUpdateTexture(indexBuffer);
+
                 int inputMap = _program.AttributeUsage.UsedInputAttributes;
 
                 while (inputMap != 0)
                 {
                     int location = BitOperations.TrailingZeroCount(inputMap);
-                    int binding = location;
+                    int binding = resourceManager.Reservations.GetVertexBufferTextureBinding(location);
                     TextureDefinition vaBuffer = new(2, binding, $"vb_data{location}", SamplerType.TextureBuffer, TextureFormat.Unknown, TextureUsageFlags.None);
                     resourceManager.Properties.AddOrUpdateTexture(vaBuffer);
 
@@ -484,6 +489,16 @@ namespace Ryujinx.Graphics.Shader.Translation
             }
         }
 
+        public ResourceReservations GetResourceReservations()
+        {
+            bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
+
+            return new ResourceReservations(
+                isTransformFeedbackEmulated,
+                vertexAsCompute: true,
+                _program.AttributeUsage.UsedOutputAttributes);
+        }
+
         public ShaderProgram GenerateVertexPassthroughForCompute()
         {
             var attributeUsage = new AttributeUsage(GpuAccessor);
@@ -496,12 +511,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             resourceManager.Properties.AddOrUpdateStorageBuffer(new(BufferLayout.Std430, 1, 0, "vb_input", vbInputStruct));
 
-            bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
-
-            var reservationsForVertexAsCompute = new ResourceReservations(
-                isTransformFeedbackEmulated,
-                vertexAsCompute: true,
-                _program.AttributeUsage.UsedOutputAttributes);
+            var reservationsForVertexAsCompute = GetResourceReservations();
 
             var context = new EmitterContext();
 
@@ -520,9 +530,13 @@ namespace Ryujinx.Graphics.Shader.Translation
                     context.Store(StorageKind.Output, ioDefinition.IoVariable, null, Const(ioDefinition.Location), Const(ioDefinition.Component), value);
                     attributeUsage.SetOutputUserAttribute(ioDefinition.Location);
                 }
-                else
+                else if (ResourceReservations.IsVectorVariable(ioDefinition.IoVariable))
                 {
                     context.Store(StorageKind.Output, ioDefinition.IoVariable, null, Const(ioDefinition.Component), value);
+                }
+                else
+                {
+                    context.Store(StorageKind.Output, ioDefinition.IoVariable, null, value);
                 }
             }
 
