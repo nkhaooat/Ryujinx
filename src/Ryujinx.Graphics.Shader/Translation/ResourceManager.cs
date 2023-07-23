@@ -49,6 +49,7 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int SharedMemoryId { get; private set; }
 
         public int LocalVertexDataMemoryId { get; private set; }
+        public int LocalVertexIndexMemoryId { get; private set; }
 
         public ShaderProperties Properties { get; }
 
@@ -86,6 +87,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             SharedMemoryId = -1;
 
             LocalVertexDataMemoryId = -1;
+            LocalVertexIndexMemoryId = -1;
         }
 
         public void SetCurrentLocalMemory(int size, bool isUsed)
@@ -133,6 +135,13 @@ namespace Ryujinx.Graphics.Shader.Translation
                 var lmem = new MemoryDefinition("local_vertex_data", AggregateType.Array | AggregateType.FP32, Reservations.OutputSizePerInvocation);
 
                 LocalVertexDataMemoryId = Properties.AddLocalMemory(lmem);
+            }
+
+            if (LocalVertexIndexMemoryId < 0)
+            {
+                var lmem = new MemoryDefinition("local_vertex_index", AggregateType.U32);
+
+                LocalVertexIndexMemoryId = Properties.AddLocalMemory(lmem);
             }
         }
 
@@ -487,17 +496,22 @@ namespace Ryujinx.Graphics.Shader.Translation
             return descriptors;
         }
 
-        public (int, int) GetCbufSlotAndHandleForTexture(int binding)
+        public bool TryGetCbufSlotAndHandleForTexture(int binding, out int cbufSlot, out int handle)
         {
             foreach ((TextureInfo info, TextureMeta meta) in _usedTextures)
             {
                 if (meta.Binding == binding)
                 {
-                    return (info.CbufSlot, info.Handle);
+                    cbufSlot = info.CbufSlot;
+                    handle = info.Handle;
+
+                    return true;
                 }
             }
 
-            throw new ArgumentException($"Binding {binding} is invalid.");
+            cbufSlot = 0;
+            handle = 0;
+            return false;
         }
 
         private static int FindDescriptorIndex(TextureDescriptor[] array, int binding)
