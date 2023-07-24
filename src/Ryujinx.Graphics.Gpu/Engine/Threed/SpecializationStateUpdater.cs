@@ -222,6 +222,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             for (int location = 0; location < state.Length; location++)
             {
                 VertexAttribType type = state[location].UnpackType();
+                VertexAttribSize size = state[location].UnpackSize();
 
                 AttributeType value = type switch
                 {
@@ -229,6 +230,21 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                     VertexAttribType.Uint => AttributeType.Uint,
                     _ => AttributeType.Float,
                 };
+
+                // TODO: Can we only do that when really needed (vertex as compute is used?)
+                // Should probably make sure specialization checks doesn't take the packed
+                // flag into account if not needed.
+                if (size == VertexAttribSize.Rgb10A2 || size == VertexAttribSize.Rg11B10)
+                {
+                    value |= AttributeType.Packed;
+
+                    if (type == VertexAttribType.Snorm ||
+                        type == VertexAttribType.Sint ||
+                        type == VertexAttribType.Sscaled)
+                    {
+                        value |= AttributeType.PackedRgb10A2Signed;
+                    }
+                }
 
                 if (attributeTypes[location] != value)
                 {
