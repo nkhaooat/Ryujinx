@@ -45,24 +45,50 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                         int location = operation.GetSource(1).Value;
                         int component = operation.GetSource(2).Value;
 
-                        Operand vertexElemOffset = GenerateVertexOffset(context.ResourceManager, node, location, component);
-
-                        Operand temp = component > 0 ? Local() : dest;
-
-                        newNode = node.List.AddBefore(node, new TextureOperation(
-                            Instruction.TextureSample,
-                            SamplerType.TextureBuffer,
-                            TextureFormat.Unknown,
-                            TextureFlags.IntCoords,
-                            context.ResourceManager.Reservations.GetVertexBufferTextureBinding(location),
-                            1,
-                            new[] { temp },
-                            new[] { vertexElemOffset }));
-
-                        if (component > 0)
+                        if (context.Definitions.IsAttributePacked(location))
                         {
-                            newNode = CopyMasked(context.ResourceManager, newNode, location, component, dest, temp);
+                            bool needsSextNorm = context.Definitions.IsAttributePackedRgb10A2Signed(location);
+
+                            Operand temp = needsSextNorm ? Local() : dest;
+                            Operand vertexElemOffset = GenerateVertexOffset(context.ResourceManager, node, location, 0);
+
+                            newNode = node.List.AddBefore(node, new TextureOperation(
+                                Instruction.TextureSample,
+                                SamplerType.TextureBuffer,
+                                TextureFormat.Unknown,
+                                TextureFlags.IntCoords,
+                                context.ResourceManager.Reservations.GetVertexBufferTextureBinding(location),
+                                1 << component,
+                                new[] { temp },
+                                new[] { vertexElemOffset }));
+
+                            if (needsSextNorm)
+                            {
+                                bool sint = context.Definitions.IsAttributeSint(location);
+                                CopySignExtendedNormalized(node, component == 3 ? 2 : 10, !sint, dest, temp);
+                            }
                         }
+                        else
+                        {
+                            Operand temp = component > 0 ? Local() : dest;
+                            Operand vertexElemOffset = GenerateVertexOffset(context.ResourceManager, node, location, component);
+
+                            newNode = node.List.AddBefore(node, new TextureOperation(
+                                Instruction.TextureSample,
+                                SamplerType.TextureBuffer,
+                                TextureFormat.Unknown,
+                                TextureFlags.IntCoords,
+                                context.ResourceManager.Reservations.GetVertexBufferTextureBinding(location),
+                                1,
+                                new[] { temp },
+                                new[] { vertexElemOffset }));
+
+                            if (component > 0)
+                            {
+                                newNode = CopyMasked(context.ResourceManager, newNode, location, component, dest, temp);
+                            }
+                        }
+
                         break;
                     case IoVariable.GlobalInvocationId:
                         // We generate that for those compute shaders.
@@ -160,6 +186,33 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             }
 
             return vertexElemOffset;
+        }
+
+        private static LinkedListNode<INode> CopySignExtendedNormalized(LinkedListNode<INode> node, int bits, bool normalize, Operand dest, Operand src)
+        {
+            Operand leftShifted = Local();
+            node = node.List.AddAfter(node, new Operation(
+                Instruction.ShiftLeft,
+                leftShifted,
+                new[] { src, Const(32 - bits) }));
+
+            Operand rightShifted = normalize ? Local() : dest;
+            node = node.List.AddAfter(node, new Operation(
+                Instruction.ShiftRightS32,
+                rightShifted,
+                new[] { leftShifted, Const(32 - bits) }));
+
+            if (normalize)
+            {
+                Operand asFloat = Local();
+                node = node.List.AddAfter(node, new Operation(Instruction.ConvertS32ToFP32, asFloat, new[] { rightShifted }));
+                node = node.List.AddAfter(node, new Operation(
+                    Instruction.FP32 | Instruction.Multiply,
+                    dest,
+                    new[] { asFloat, ConstF(1f / (1 << (bits - 1))) }));
+            }
+
+            return node;
         }
 
         private static LinkedListNode<INode> CopyMasked(

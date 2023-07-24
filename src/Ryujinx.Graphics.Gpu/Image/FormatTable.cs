@@ -555,6 +555,8 @@ namespace Ryujinx.Graphics.Gpu.Image
         };
 #pragma warning restore IDE0055
 
+        // Note: Some of those formats have been changed and requires conversion on the shader,
+        // as GPUs don't support them when used as buffer texture format.
         private static readonly Dictionary<VertexAttributeFormat, (Format, int)> _singleComponentAttribFormats = new Dictionary<VertexAttributeFormat, (Format, int)>()
         {
             { VertexAttributeFormat.R8Unorm,             (Format.R8Unorm, 1)            },
@@ -632,8 +634,8 @@ namespace Ryujinx.Graphics.Gpu.Image
             { VertexAttributeFormat.R16G16B16A16Sscaled, (Format.R16Sscaled, 4)         },
             { VertexAttributeFormat.R32G32B32A32Uscaled, (Format.R32Uscaled, 4)         },
             { VertexAttributeFormat.R32G32B32A32Sscaled, (Format.R32Sscaled, 4)         },
-            { VertexAttributeFormat.A2B10G10R10Snorm,    (Format.R10G10B10A2Snorm, 4)   },
-            { VertexAttributeFormat.A2B10G10R10Sint,     (Format.R10G10B10A2Sint, 4)    },
+            { VertexAttributeFormat.A2B10G10R10Snorm,    (Format.R10G10B10A2Uint, 4)    }, // Snorm -> Uint
+            { VertexAttributeFormat.A2B10G10R10Sint,     (Format.R10G10B10A2Uint, 4)    }, // Sint -> Uint
             { VertexAttributeFormat.A2B10G10R10Uscaled,  (Format.R10G10B10A2Uscaled, 4) },
             { VertexAttributeFormat.A2B10G10R10Sscaled,  (Format.R10G10B10A2Sscaled, 4) }
         };

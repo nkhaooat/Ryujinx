@@ -311,5 +311,27 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             return type;
         }
+
+        public bool IsAttributeSint(int location)
+        {
+            return (_graphicsState.AttributeTypes[location] & ~(AttributeType.Packed | AttributeType.PackedRgb10A2Signed)) == AttributeType.Sint;
+        }
+
+        public bool IsAttributePacked(int location)
+        {
+            return _graphicsState.AttributeTypes[location].HasFlag(AttributeType.Packed);
+        }
+
+        public bool IsAttributePackedRgb10A2Signed(int location)
+        {
+            return _graphicsState.AttributeTypes[location].HasFlag(AttributeType.PackedRgb10A2Signed);
+        }
+
+        public ShaderDefinitions AsCompute(int computeLocalSizeX, int computeLocalSizeY, int computeLocalSizeZ)
+        {
+            ShaderDefinitions definitions = new(ShaderStage.Compute, computeLocalSizeX, computeLocalSizeY, computeLocalSizeZ);
+
+            return definitions;
+        }
     }
 }
