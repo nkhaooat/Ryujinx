@@ -326,13 +326,17 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             TargetApi api = _context.Capabilities.Api;
 
+            bool hasGeometryShader = addresses.Geometry != 0;
+            bool vertexToCompute = ShouldConvertVertexToCompute(hasGeometryShader);
+            bool geometryToCompute = ShouldConvertGeometryToCompute();
+
             for (int stageIndex = Constants.ShaderStages - 1; stageIndex >= 0; stageIndex--)
             {
                 ulong gpuVa = addressesSpan[stageIndex + 1];
 
                 if (gpuVa != 0)
                 {
-                    GpuAccessor gpuAccessor = new(_context, channel, gpuAccessorState, stageIndex, ShouldConvertVertexToCompute());
+                    GpuAccessor gpuAccessor = new(_context, channel, gpuAccessorState, stageIndex, vertexToCompute);
                     TranslatorContext currentStage = DecodeGraphicsShader(gpuAccessor, api, DefaultFlags, gpuVa);
 
                     if (nextStage != null)
@@ -359,10 +363,9 @@ namespace Ryujinx.Graphics.Gpu.Shader
             List<ShaderSource> shaderSources = new();
 
             TranslatorContext previousStage = null;
+            ShaderInfoBuilder infoBuilder = new(_context, transformFeedbackDescriptors != null, vertexToCompute);
 
-            ShaderInfoBuilder infoBuilder = new(_context, transformFeedbackDescriptors != null, ShouldConvertVertexToCompute());
-
-            if (ShouldConvertGeometryToCompute() && translatorContexts[4] != null)
+            if (geometryToCompute && translatorContexts[4] != null)
             {
                 translatorContexts[4].SetVertexOutputMapForGeometryAsCompute(translatorContexts[1]);
             }
@@ -378,8 +381,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 {
                     ShaderProgram program;
 
-                    bool asCompute = (stageIndex == 0 && ShouldConvertVertexToCompute()) ||
-                                     (stageIndex == 3 && ShouldConvertGeometryToCompute());
+                    bool asCompute = (stageIndex == 0 && vertexToCompute) ||
+                                     (stageIndex == 3 && geometryToCompute);
 
                     if (stageIndex == 0 && translatorContexts[0] != null)
                     {
@@ -412,7 +415,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                         {
                             vertexAsCompute = CreateHostVertexAsComputeProgram(program, currentStage, ShaderStage.Vertex);
 
-                            if (translatorContexts[4] != null && ShouldConvertGeometryToCompute())
+                            if (geometryToCompute && translatorContexts[4] != null)
                             {
                                 program = translatorContexts[4].GenerateVertexPassthroughForCompute();
                             }
@@ -461,10 +464,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
             return gpShaders;
         }
 
-        private bool ShouldConvertVertexToCompute()
+        private bool ShouldConvertVertexToCompute(bool hasGeometryShader)
         {
             // TODO: Implement this, set to true for testing for now.
-            return true;
+
+            // If any stage after the vertex stage is converted to compute,
+            // we need to convert vertex to compute too.
+            return hasGeometryShader && ShouldConvertGeometryToCompute();
         }
 
         private bool ShouldConvertGeometryToCompute()

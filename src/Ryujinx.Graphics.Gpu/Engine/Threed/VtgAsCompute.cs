@@ -109,6 +109,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         }
 
         public void DrawAsCompute(
+            ThreedClass engine,
             ShaderAsCompute vertexAsCompute,
             ShaderAsCompute geometryAsCompute,
             IProgram vertexPassthroughProgram,
@@ -270,13 +271,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
                 _context.Renderer.Pipeline.DrawIndexed(geometryIbDataCount, 1, 0, 0, 0);
 
-                // TODO: Properly restore state.
-                _context.Renderer.Pipeline.SetPrimitiveRestart(false, 0);
+                engine.ForceStateDirtyByIndex(StateUpdater.IndexBufferStateIndex);
+                engine.ForceStateDirtyByIndex(StateUpdater.PrimitiveRestartStateIndex);
             }
             else
             {
                 _context.Renderer.Pipeline.SetProgram(vertexPassthroughProgram);
-                _context.Renderer.Pipeline.SetPrimitiveTopology(topology);
                 _context.Renderer.Pipeline.Draw(count, instanceCount, 0, 0);
             }
         }
