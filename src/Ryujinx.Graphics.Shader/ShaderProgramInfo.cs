@@ -15,6 +15,7 @@ namespace Ryujinx.Graphics.Shader
         public ShaderStage Stage { get; }
         public int GeometryVerticesPerPrimitive { get; }
         public int GeometryMaxOutputVertices { get; }
+        public int ThreadsPerInputPrimitive { get; }
         public bool UsesFragCoord { get; }
         public bool UsesInstanceId { get; }
         public bool UsesDrawParameters { get; }
@@ -32,6 +33,7 @@ namespace Ryujinx.Graphics.Shader
             ShaderStage stage,
             int geometryVerticesPerPrimitive,
             int geometryMaxOutputVertices,
+            int threadsPerInputPrimitive,
             bool usesFragCoord,
             bool usesInstanceId,
             bool usesDrawParameters,
@@ -49,6 +51,7 @@ namespace Ryujinx.Graphics.Shader
             Stage = stage;
             GeometryVerticesPerPrimitive = geometryVerticesPerPrimitive;
             GeometryMaxOutputVertices = geometryMaxOutputVertices;
+            ThreadsPerInputPrimitive = threadsPerInputPrimitive;
             UsesFragCoord = usesFragCoord;
             UsesInstanceId = usesInstanceId;
             UsesDrawParameters = usesDrawParameters;

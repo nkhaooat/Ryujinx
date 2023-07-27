@@ -370,6 +370,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 definitions.Stage,
                 geometryVerticesPerPrimitive,
                 Definitions.MaxOutputVertices,
+                Definitions.ThreadsPerInputPrimitive,
                 usedFeatures.HasFlag(FeatureFlags.FragCoordXY),
                 usedFeatures.HasFlag(FeatureFlags.InstanceId),
                 usedFeatures.HasFlag(FeatureFlags.DrawParameters),
@@ -399,15 +400,9 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private ResourceManager CreateResourceManager(bool vertexAsCompute)
         {
-            bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
+            ResourceManager resourceManager = new(Definitions.Stage, GpuAccessor, GetResourceReservations());
 
-            ResourceManager resourceManager = new(
-                Definitions.Stage,
-                GpuAccessor,
-                isTransformFeedbackEmulated,
-                vertexAsCompute,
-                _vertexOutput,
-                _program.GetIoUsage());
+            bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
 
             if (isTransformFeedbackEmulated)
             {
@@ -529,12 +524,14 @@ namespace Ryujinx.Graphics.Shader.Translation
         {
             bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
 
-            return new ResourceReservations(
-                GpuAccessor,
-                isTransformFeedbackEmulated,
-                vertexAsCompute: true,
-                _vertexOutput,
-                _program.GetIoUsage());
+            IoUsage ioUsage = _program.GetIoUsage();
+
+            if (Definitions.GpPassthrough)
+            {
+                ioUsage = ioUsage.Combine(_vertexOutput);
+            }
+
+            return new ResourceReservations(GpuAccessor, isTransformFeedbackEmulated, vertexAsCompute: true, _vertexOutput, ioUsage);
         }
 
         public void SetVertexOutputMapForGeometryAsCompute(TranslatorContext vertexContext)

@@ -180,7 +180,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
                 ulong oldVbSize = vbSize;
 
-                ulong attributeOffset = (ulong)firstVertex * (ulong)vbStride + (ulong)vertexAttrib.UnpackOffset();
+                ulong attributeOffset = (ulong)vertexAttrib.UnpackOffset();
                 int componentSize = format.GetScalarSize();
 
                 address += attributeOffset;
@@ -222,7 +222,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             {
                 int totalPrimitivesCount = GetPrimitivesCount(topology, count * instanceCount);
                 int maxCompleteStrips = GetMaxCompleteStrips(geometryAsCompute.Info.GeometryVerticesPerPrimitive, geometryAsCompute.Info.GeometryMaxOutputVertices);
-                int totalVerticesCount = totalPrimitivesCount * geometryAsCompute.Info.GeometryMaxOutputVertices;
+                int totalVerticesCount = totalPrimitivesCount * geometryAsCompute.Info.GeometryMaxOutputVertices * geometryAsCompute.Info.ThreadsPerInputPrimitive;
                 int geometryVbDataSize = totalVerticesCount * geometryAsCompute.Reservations.OutputSizeInBytesPerInvocation;
                 int geometryIbDataCount = totalVerticesCount + totalPrimitivesCount * maxCompleteStrips;
                 int geometryIbDataSize = geometryIbDataCount * sizeof(uint);
@@ -246,7 +246,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 _context.Renderer.Pipeline.DispatchCompute(
                     (primitivesCount + ComputeLocalSize - 1) / ComputeLocalSize,
                     (instanceCount + ComputeLocalSize - 1) / ComputeLocalSize,
-                    1);
+                    geometryAsCompute.Info.ThreadsPerInputPrimitive);
 
                 _context.Renderer.Pipeline.Barrier();
 

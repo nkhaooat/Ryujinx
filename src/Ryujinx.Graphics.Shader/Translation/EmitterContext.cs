@@ -99,6 +99,8 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                 Operand outputInstanceOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
                 Operand instanceCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(1));
+                Operand firstVertex = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(2));
+                Operand firstInstance = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(3));
                 Operand isInstanceOob = this.ICompareGreaterOrEqualUnsigned(outputInstanceOffset, instanceCount);
 
                 Operand lblInstanceInBounds = Label();
@@ -110,7 +112,6 @@ namespace Ryujinx.Graphics.Shader.Translation
                 if (TranslatorContext.Stage == ShaderStage.Vertex)
                 {
                     Operand vertexIndexVr = Local();
-                    Operand vertexIndexIr = Local();
 
                     this.TextureSample(
                         SamplerType.TextureBuffer,
@@ -120,16 +121,8 @@ namespace Ryujinx.Graphics.Shader.Translation
                         new[] { vertexIndexVr },
                         new[] { outputVertexOffset });
 
-                    this.TextureSample(
-                        SamplerType.TextureBuffer,
-                        TextureFlags.IntCoords,
-                        ResourceManager.Reservations.GetIndexBufferTextureBinding(),
-                        1,
-                        new[] { vertexIndexIr },
-                        new[] { outputInstanceOffset });
-
-                    this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexVertexRateMemoryId, vertexIndexVr);
-                    this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexInstanceRateMemoryId, vertexIndexIr);
+                    this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexVertexRateMemoryId, this.IAdd(firstVertex, vertexIndexVr));
+                    this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexInstanceRateMemoryId, this.IAdd(firstInstance, outputInstanceOffset));
                 }
                 else if (TranslatorContext.Stage == ShaderStage.Geometry)
                 {
@@ -565,15 +558,18 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                     Operand writtenIndices = this.Load(StorageKind.LocalMemory, ResourceManager.LocalGeometryOutputIndexCountMemoryId);
 
-                    int maxIndicesPerPrimitive = TranslatorContext.Definitions.GetGeometryOutputIndexBufferStride();
+                    int maxIndicesPerPrimitiveInvocation = TranslatorContext.Definitions.GetGeometryOutputIndexBufferStridePerInstance();
+                    int maxIndicesPerPrimitive = maxIndicesPerPrimitiveInvocation * TranslatorContext.Definitions.ThreadsPerInputPrimitive;
 
-                    this.BranchIfTrue(lblExit, this.ICompareGreaterOrEqualUnsigned(writtenIndices, Const(maxIndicesPerPrimitive)));
+                    this.BranchIfTrue(lblExit, this.ICompareGreaterOrEqualUnsigned(writtenIndices, Const(maxIndicesPerPrimitiveInvocation)));
 
                     Operand primitiveIndex = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
                     Operand instanceIndex = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
+                    Operand invocationId = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(2));
                     Operand vertexCount = this.Load(StorageKind.ConstantBuffer, ResourceManager.Reservations.GetVertexInfoConstantBufferBinding(), Const(0), Const(0));
                     Operand primitiveId = this.IAdd(this.IMultiply(instanceIndex, vertexCount), primitiveIndex);
                     Operand ibOffset = this.IMultiply(primitiveId, Const(maxIndicesPerPrimitive));
+                    ibOffset = this.IAdd(ibOffset, this.IMultiply(invocationId, Const(maxIndicesPerPrimitiveInvocation)));
                     ibOffset = this.IAdd(ibOffset, writtenIndices);
 
                     this.Store(StorageKind.StorageBuffer, ResourceManager.Reservations.GetGeometryIndexOutputStorageBufferBinding(), Const(0), ibOffset, Const(-1));

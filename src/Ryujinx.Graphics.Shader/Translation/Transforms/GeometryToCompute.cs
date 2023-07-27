@@ -62,6 +62,9 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                         {
                             switch (ioVariable)
                             {
+                                case IoVariable.InvocationId:
+                                    newNode = GenerateInvocationId(node, operation.Dest);
+                                    break;
                                 case IoVariable.PrimitiveId:
                                     newNode = GeneratePrimitiveId(context.ResourceManager, node, operation.Dest);
                                     break;
@@ -132,12 +135,20 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             int stride = resourceManager.Reservations.OutputSizePerInvocation;
 
             Operand outputPrimVertex = IncrementLocalMemory(node, resourceManager.LocalGeometryOutputVertexCountMemoryId);
-            Operand baseVertexOffset = GenerateBaseOffset(resourceManager, node, definitions.MaxOutputVertices);
+            Operand baseVertexOffset = GenerateBaseOffset(
+                resourceManager,
+                node,
+                definitions.MaxOutputVertices * definitions.ThreadsPerInputPrimitive,
+                definitions.ThreadsPerInputPrimitive);
             Operand outputBaseVertex = Local();
             node.List.AddBefore(node, new Operation(Instruction.Add, outputBaseVertex, new[] { baseVertexOffset, outputPrimVertex }));
 
             Operand outputPrimIndex = IncrementLocalMemory(node, resourceManager.LocalGeometryOutputIndexCountMemoryId);
-            Operand baseIndexOffset = GenerateBaseOffset(resourceManager, node, definitions.GetGeometryOutputIndexBufferStride());
+            Operand baseIndexOffset = GenerateBaseOffset(
+                resourceManager,
+                node,
+                definitions.GetGeometryOutputIndexBufferStride(),
+                definitions.ThreadsPerInputPrimitive);
             Operand outputBaseIndex = Local();
             node.List.AddBefore(node, new Operation(Instruction.Add, outputBaseIndex, new[] { baseIndexOffset, outputPrimIndex }));
 
@@ -188,7 +199,11 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             int ibOutputBinding = resourceManager.Reservations.GetGeometryIndexOutputStorageBufferBinding();
 
             Operand outputPrimIndex = IncrementLocalMemory(node, resourceManager.LocalGeometryOutputIndexCountMemoryId);
-            Operand baseIndexOffset = GenerateBaseOffset(resourceManager, node, definitions.GetGeometryOutputIndexBufferStride());
+            Operand baseIndexOffset = GenerateBaseOffset(
+                resourceManager,
+                node,
+                definitions.GetGeometryOutputIndexBufferStride(),
+                definitions.ThreadsPerInputPrimitive);
             Operand outputBaseIndex = Local();
             node.List.AddBefore(node, new Operation(Instruction.Add, outputBaseIndex, new[] { baseIndexOffset, outputPrimIndex }));
 
@@ -199,7 +214,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 new[] { Const(ibOutputBinding), Const(0), outputBaseIndex, Const(-1) }));
         }
 
-        private static Operand GenerateBaseOffset(ResourceManager resourceManager, LinkedListNode<INode> node, int stride)
+        private static Operand GenerateBaseOffset(ResourceManager resourceManager, LinkedListNode<INode> node, int stride, int threadsPerInputPrimitive)
         {
             Operand primitiveId = Local();
             GeneratePrimitiveId(resourceManager, node, primitiveId);
@@ -207,7 +222,16 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand baseOffset = Local();
             node.List.AddBefore(node, new Operation(Instruction.Multiply, baseOffset, new[] { primitiveId, Const(stride) }));
 
-            return baseOffset;
+            Operand invocationId = Local();
+            GenerateInvocationId(node, invocationId);
+
+            Operand invocationOffset = Local();
+            node.List.AddBefore(node, new Operation(Instruction.Multiply, invocationOffset, new[] { invocationId, Const(stride / threadsPerInputPrimitive) }));
+
+            Operand combinedOffset = Local();
+            node.List.AddBefore(node, new Operation(Instruction.Add, combinedOffset, new[] { baseOffset, invocationOffset }));
+
+            return combinedOffset;
         }
 
         private static Operand IncrementLocalMemory(LinkedListNode<INode> node, int memoryId)
@@ -314,6 +338,15 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             node.List.AddBefore(node, new Operation(Instruction.Multiply, baseVertex, new[] { instanceIndex, vertexCount }));
 
             return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseVertex, vertexIndex }));
+        }
+
+        private static LinkedListNode<INode> GenerateInvocationId(LinkedListNode<INode> node, Operand dest)
+        {
+            return node.List.AddBefore(node, new Operation(
+                Instruction.Load,
+                StorageKind.Input,
+                dest,
+                new[] { Const((int)IoVariable.GlobalInvocationId), Const(2) }));
         }
 
         private static bool TryGetOffset(ResourceManager resourceManager, Operation operation, StorageKind storageKind, out int outputOffset)

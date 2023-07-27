@@ -362,6 +362,11 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             ShaderInfoBuilder infoBuilder = new(_context, transformFeedbackDescriptors != null, ShouldConvertVertexToCompute());
 
+            if (ShouldConvertGeometryToCompute() && translatorContexts[4] != null)
+            {
+                translatorContexts[4].SetVertexOutputMapForGeometryAsCompute(translatorContexts[1]);
+            }
+
             ShaderAsCompute vertexAsCompute = null;
             ShaderAsCompute geometryAsCompute = null;
 
@@ -373,14 +378,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 {
                     ShaderProgram program;
 
-                    bool asComputeVtx = stageIndex == 0 && ShouldConvertVertexToCompute();
-                    bool asComputeGeo = stageIndex == 3 && ShouldConvertGeometryToCompute();
-                    bool asCompute = asComputeVtx || asComputeGeo;
-
-                    if (asComputeGeo)
-                    {
-                        currentStage.SetVertexOutputMapForGeometryAsCompute(translatorContexts[1]);
-                    }
+                    bool asCompute = (stageIndex == 0 && ShouldConvertVertexToCompute()) ||
+                                     (stageIndex == 3 && ShouldConvertGeometryToCompute());
 
                     if (stageIndex == 0 && translatorContexts[0] != null)
                     {
