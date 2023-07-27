@@ -70,7 +70,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
             _reservedTextures = rrc.ReservedTextures;
             _reservedImages = rrc.ReservedImages;
 
-            ResourceStages stages = vertexAsCompute ? ResourceStages.Compute : VtgStages;
+            // TODO: Handle that better? Maybe we should only set the binding that are really needed on each shader.
+            ResourceStages stages = vertexAsCompute ? ResourceStages.Compute | ResourceStages.Vertex : VtgStages;
 
             PopulateDescriptorAndUsages(stages, ResourceType.UniformBuffer, ResourceAccess.Read, UniformSetIndex, 1, rrc.ReservedConstantBuffers - 1);
             PopulateDescriptorAndUsages(stages, ResourceType.StorageBuffer, ResourceAccess.ReadWrite, StorageSetIndex, 0, rrc.ReservedStorageBuffers);
@@ -88,14 +89,17 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// Adds information from a given shader stage.
         /// </summary>
         /// <param name="info">Shader stage information</param>
-        public void AddStageInfo(ShaderProgramInfo info)
+        /// <param name="stageOverride">Optional shader stage override</param>
+        public void AddStageInfo(ShaderProgramInfo info, ShaderStage? stageOverride = null)
         {
             if (info.Stage == ShaderStage.Fragment)
             {
                 _fragmentOutputMap = info.FragmentOutputMap;
             }
 
-            int stageIndex = GpuAccessorBase.GetStageIndex(info.Stage switch
+            ShaderStage stage = stageOverride ?? info.Stage;
+
+            int stageIndex = GpuAccessorBase.GetStageIndex(stage switch
             {
                 ShaderStage.TessellationControl => 1,
                 ShaderStage.TessellationEvaluation => 2,
@@ -290,13 +294,29 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// <param name="context">GPU context that owns the shader</param>
         /// <param name="info">Compute shader information</param>
         /// <param name="fromCache">True if the compute shader comes from a disk cache, false otherwise</param>
-        /// <param name="vertexAsCompute">Indicates that this compute shader was converted from a vertex shader</param>
         /// <returns>Shader information</returns>
-        public static ShaderInfo BuildForCompute(GpuContext context, ShaderProgramInfo info, bool fromCache = false, bool vertexAsCompute = false)
+        public static ShaderInfo BuildForCompute(GpuContext context, ShaderProgramInfo info, bool fromCache = false)
         {
-            ShaderInfoBuilder builder = new(context, tfEnabled: false, vertexAsCompute);
+            ShaderInfoBuilder builder = new(context, tfEnabled: false, vertexAsCompute: false);
 
             builder.AddStageInfo(info);
+
+            return builder.Build(null, fromCache);
+        }
+
+        /// <summary>
+        /// Builds shader information for a vertex or geometry shader thas was converted to compute shader.
+        /// </summary>
+        /// <param name="context">GPU context that owns the shader</param>
+        /// <param name="info">Compute shader information</param>
+        /// <param name="originalStage">Shader stage before it was converted to compute</param>
+        /// <param name="fromCache">True if the compute shader comes from a disk cache, false otherwise</param>
+        /// <returns>Shader information</returns>
+        public static ShaderInfo BuildForVertexAsCompute(GpuContext context, ShaderProgramInfo info, ShaderStage originalStage, bool fromCache = false)
+        {
+            ShaderInfoBuilder builder = new(context, tfEnabled: false, vertexAsCompute: true);
+
+            builder.AddStageInfo(info, originalStage);
 
             return builder.Build(null, fromCache);
         }

@@ -20,6 +20,11 @@ namespace Ryujinx.Graphics.Gpu.Shader
         public ShaderAsCompute VertexAsCompute { get; }
 
         /// <summary>
+        /// Optional geometry shader converted to compute.
+        /// </summary>
+        public ShaderAsCompute GeometryAsCompute { get; }
+
+        /// <summary>
         /// GPU state used to create this version of the shader.
         /// </summary>
         public ShaderSpecializationState SpecializationState { get; }
@@ -53,10 +58,12 @@ namespace Ryujinx.Graphics.Gpu.Shader
         public CachedShaderProgram(
             IProgram hostProgram,
             ShaderAsCompute vertexAsCompute,
+            ShaderAsCompute geometryAsCompute,
             ShaderSpecializationState specializationState,
             CachedShaderStage[] shaders) : this(hostProgram, specializationState, shaders)
         {
             VertexAsCompute = vertexAsCompute;
+            GeometryAsCompute = geometryAsCompute;
         }
 
         /// <summary>
@@ -66,6 +73,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         {
             HostProgram.Dispose();
             VertexAsCompute?.HostProgram.Dispose();
+            GeometryAsCompute?.HostProgram.Dispose();
         }
     }
 }

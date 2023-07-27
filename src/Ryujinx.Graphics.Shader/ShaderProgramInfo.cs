@@ -13,6 +13,8 @@ namespace Ryujinx.Graphics.Shader
         public ShaderIdentification Identification { get; }
         public int GpLayerInputAttribute { get; }
         public ShaderStage Stage { get; }
+        public int GeometryVerticesPerPrimitive { get; }
+        public int GeometryMaxOutputVertices { get; }
         public bool UsesFragCoord { get; }
         public bool UsesInstanceId { get; }
         public bool UsesDrawParameters { get; }
@@ -28,6 +30,8 @@ namespace Ryujinx.Graphics.Shader
             ShaderIdentification identification,
             int gpLayerInputAttribute,
             ShaderStage stage,
+            int geometryVerticesPerPrimitive,
+            int geometryMaxOutputVertices,
             bool usesFragCoord,
             bool usesInstanceId,
             bool usesDrawParameters,
@@ -43,6 +47,8 @@ namespace Ryujinx.Graphics.Shader
             Identification = identification;
             GpLayerInputAttribute = gpLayerInputAttribute;
             Stage = stage;
+            GeometryVerticesPerPrimitive = geometryVerticesPerPrimitive;
+            GeometryMaxOutputVertices = geometryMaxOutputVertices;
             UsesFragCoord = usesFragCoord;
             UsesInstanceId = usesInstanceId;
             UsesDrawParameters = usesDrawParameters;

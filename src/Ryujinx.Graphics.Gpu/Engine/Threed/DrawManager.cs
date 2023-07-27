@@ -584,7 +584,9 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             {
                 _vtgAsCompute.DrawAsCompute(
                     _drawState.VertexAsCompute,
+                    _drawState.GeometryAsCompute,
                     _drawState.VertexPassthrough,
+                    _drawState.Topology,
                     count,
                     instanceCount,
                     firstIndex,

@@ -69,6 +69,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         public ShaderAsCompute VertexAsCompute;
 
         /// <summary>
+        /// If a geometry shader exists and is emulated on compute, this should be set to the compute program, otherwise it should be null.
+        /// </summary>
+        public ShaderAsCompute GeometryAsCompute;
+
+        /// <summary>
         /// If the vertex shader is emulated on compute, this should be set to the passthrough vertex program, otherwise it should be null.
         /// </summary>
         public IProgram VertexPassthrough;

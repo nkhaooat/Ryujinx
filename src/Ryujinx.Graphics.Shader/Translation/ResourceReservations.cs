@@ -15,6 +15,7 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int ReservedStorageBuffers { get; }
         public int ReservedTextures { get; }
         public int ReservedImages { get; }
+        public int InputSizePerInvocation { get; }
         public int OutputSizePerInvocation { get; }
         public int OutputSizeInBytesPerInvocation => OutputSizePerInvocation * sizeof(uint);
 
@@ -22,14 +23,16 @@ namespace Ryujinx.Graphics.Shader.Translation
         private readonly int _tfeBufferSbBaseBinding;
         private readonly int _vertexInfoCbBinding;
         private readonly int _vertexOutputSbBinding;
+        private readonly int _geometryVbOutputSbBinding;
+        private readonly int _geometryIbOutputSbBinding;
         private readonly int _indexBufferTextureBinding;
+        private readonly int _topologyRemapBufferTextureBinding;
         private readonly int _vertexBufferTextureBaseBinding;
 
-        private readonly Dictionary<IoDefinition, int> _outputOffsets;
+        private readonly Dictionary<IoDefinition, int> _offsets;
+        internal IReadOnlyDictionary<IoDefinition, int> Offsets => _offsets;
 
-        internal IReadOnlyDictionary<IoDefinition, int> OutputOffsets => _outputOffsets;
-
-        internal ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute, int vacOutputMap)
+        internal ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute, int? vacInputMap, int vacOutputMap)
         {
             // All stages reserves the first constant buffer binding for the support buffer.
             ReservedConstantBuffers = 1;
@@ -53,39 +56,56 @@ namespace Ryujinx.Graphics.Shader.Translation
                 // One storage buffer for the output vertex data.
                 _vertexOutputSbBinding = ReservedStorageBuffers++;
 
+                // One storage buffer for the output geometry vertex data.
+                _geometryVbOutputSbBinding = ReservedStorageBuffers++;
+
+                // One storage buffer for the output geometry index data.
+                _geometryIbOutputSbBinding = ReservedStorageBuffers++;
+
                 // Enough textures reserved for all vertex attributes, plus the index buffer.
                 _indexBufferTextureBinding = ReservedTextures;
-                _vertexBufferTextureBaseBinding = ReservedTextures + 1;
-                ReservedTextures += 1 + MaxVertexBufferTextures;
+                _topologyRemapBufferTextureBinding = ReservedTextures + 1;
+                _vertexBufferTextureBaseBinding = ReservedTextures + 2;
+                ReservedTextures += 2 + MaxVertexBufferTextures;
             }
-
-            _outputOffsets = new();
 
             if (vertexAsCompute)
             {
-                int offset = 0;
+                _offsets = new();
+
+                if (vacInputMap.HasValue)
+                {
+                    InputSizePerInvocation = FillIoOffsetMap(StorageKind.Input, vacInputMap.Value);
+                }
+
+                OutputSizePerInvocation = FillIoOffsetMap(StorageKind.Output, vacOutputMap);
+            }
+        }
+
+        private int FillIoOffsetMap(StorageKind storageKind, int vacMap)
+        {
+            int offset = 0;
+
+            for (int c = 0; c < 4; c++)
+            {
+                _offsets.Add(new IoDefinition(storageKind, IoVariable.Position, 0, c), offset++);
+            }
+
+            _offsets.Add(new IoDefinition(storageKind, IoVariable.PointSize), offset++);
+
+            while (vacMap != 0)
+            {
+                int location = BitOperations.TrailingZeroCount(vacMap);
 
                 for (int c = 0; c < 4; c++)
                 {
-                    _outputOffsets.Add(new IoDefinition(StorageKind.Output, IoVariable.Position, 0, c), offset++);
+                    _offsets.Add(new IoDefinition(storageKind, IoVariable.UserDefined, location, c), offset++);
                 }
 
-                _outputOffsets.Add(new IoDefinition(StorageKind.Output, IoVariable.PointSize), offset++);
-
-                while (vacOutputMap != 0)
-                {
-                    int location = BitOperations.TrailingZeroCount(vacOutputMap);
-
-                    for (int c = 0; c < 4; c++)
-                    {
-                        _outputOffsets.Add(new IoDefinition(StorageKind.Output, IoVariable.UserDefined, location, c), offset++);
-                    }
-
-                    vacOutputMap &= ~(1 << location);
-                }
-
-                OutputSizePerInvocation = offset;
+                vacMap &= ~(1 << location);
             }
+
+            return offset;
         }
 
         internal static bool IsVectorVariable(IoVariable variable)
@@ -117,9 +137,24 @@ namespace Ryujinx.Graphics.Shader.Translation
             return _vertexOutputSbBinding;
         }
 
+        public int GetGeometryVertexOutputStorageBufferBinding()
+        {
+            return _geometryVbOutputSbBinding;
+        }
+
+        public int GetGeometryIndexOutputStorageBufferBinding()
+        {
+            return _geometryIbOutputSbBinding;
+        }
+
         public int GetIndexBufferTextureBinding()
         {
             return _indexBufferTextureBinding;
+        }
+
+        public int GetTopologyRemapBufferTextureBinding()
+        {
+            return _topologyRemapBufferTextureBinding;
         }
 
         public int GetVertexBufferTextureBinding(int vaLocation)
@@ -127,19 +162,19 @@ namespace Ryujinx.Graphics.Shader.Translation
             return _vertexBufferTextureBaseBinding + vaLocation;
         }
 
-        internal bool TryGetOutputOffset(int location, int component, out int offset)
+        internal bool TryGetOffset(StorageKind storageKind, int location, int component, out int offset)
         {
-            return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, IoVariable.UserDefined, location, component), out offset);
+            return _offsets.TryGetValue(new IoDefinition(storageKind, IoVariable.UserDefined, location, component), out offset);
         }
 
-        internal bool TryGetOutputOffset(IoVariable ioVariable, int component, out int offset)
+        internal bool TryGetOffset(StorageKind storageKind, IoVariable ioVariable, int component, out int offset)
         {
-            return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, ioVariable, 0, component), out offset);
+            return _offsets.TryGetValue(new IoDefinition(storageKind, ioVariable, 0, component), out offset);
         }
 
-        internal bool TryGetOutputOffset(IoVariable ioVariable, out int offset)
+        internal bool TryGetOffset(StorageKind storageKind, IoVariable ioVariable, out int offset)
         {
-            return _outputOffsets.TryGetValue(new IoDefinition(StorageKind.Output, ioVariable, 0, 0), out offset);
+            return _offsets.TryGetValue(new IoDefinition(storageKind, ioVariable, 0, 0), out offset);
         }
     }
 }

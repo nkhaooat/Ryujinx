@@ -101,7 +101,7 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
                         string outPrimitive = context.Definitions.OutputTopology.ToGlslString();
 
                         int maxOutputVertices = context.Definitions.GpPassthrough
-                            ? context.Definitions.InputTopology.ToInputVertices()
+                            ? context.Definitions.InputTopology.ToInputVerticesNoAdjacency()
                             : context.Definitions.MaxOutputVertices;
 
                         context.AppendLine($"layout ({outPrimitive}, max_vertices = {maxOutputVertices}) out;");
@@ -339,15 +339,22 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
             {
                 string typeName = GetVarTypeName(context, memory.Type & ~AggregateType.Array);
 
-                if (memory.ArrayLength > 0)
+                if (memory.Type.HasFlag(AggregateType.Array))
                 {
-                    string arraySize = memory.ArrayLength.ToString(CultureInfo.InvariantCulture);
+                    if (memory.ArrayLength > 0)
+                    {
+                        string arraySize = memory.ArrayLength.ToString(CultureInfo.InvariantCulture);
 
-                    context.AppendLine($"{prefix}{typeName} {memory.Name}[{arraySize}];");
+                        context.AppendLine($"{prefix}{typeName} {memory.Name}[{arraySize}];");
+                    }
+                    else
+                    {
+                        context.AppendLine($"{prefix}{typeName} {memory.Name}[];");
+                    }
                 }
                 else
                 {
-                    context.AppendLine($"{prefix}{typeName} {memory.Name}[];");
+                    context.AppendLine($"{prefix}{typeName} {memory.Name};");
                 }
             }
         }
