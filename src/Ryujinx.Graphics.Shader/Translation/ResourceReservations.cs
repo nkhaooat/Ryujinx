@@ -32,7 +32,12 @@ namespace Ryujinx.Graphics.Shader.Translation
         private readonly Dictionary<IoDefinition, int> _offsets;
         internal IReadOnlyDictionary<IoDefinition, int> Offsets => _offsets;
 
-        internal ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute, int? vacInputMap, int vacOutputMap)
+        internal ResourceReservations(
+            IGpuAccessor gpuAccessor,
+            bool isTransformFeedbackEmulated,
+            bool vertexAsCompute,
+            IoUsage? vacInput,
+            IoUsage vacOutput)
         {
             // All stages reserves the first constant buffer binding for the support buffer.
             ReservedConstantBuffers = 1;
@@ -73,16 +78,16 @@ namespace Ryujinx.Graphics.Shader.Translation
             {
                 _offsets = new();
 
-                if (vacInputMap.HasValue)
+                if (vacInput.HasValue)
                 {
-                    InputSizePerInvocation = FillIoOffsetMap(StorageKind.Input, vacInputMap.Value);
+                    InputSizePerInvocation = FillIoOffsetMap(gpuAccessor, StorageKind.Input, vacInput.Value);
                 }
 
-                OutputSizePerInvocation = FillIoOffsetMap(StorageKind.Output, vacOutputMap);
+                OutputSizePerInvocation = FillIoOffsetMap(gpuAccessor, StorageKind.Output, vacOutput);
             }
         }
 
-        private int FillIoOffsetMap(StorageKind storageKind, int vacMap)
+        private int FillIoOffsetMap(IGpuAccessor gpuAccessor, StorageKind storageKind, IoUsage vacUsage)
         {
             int offset = 0;
 
@@ -93,25 +98,54 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             _offsets.Add(new IoDefinition(storageKind, IoVariable.PointSize), offset++);
 
-            while (vacMap != 0)
+            int clipDistancesWrittenMap = vacUsage.ClipDistancesWritten;
+
+            while (clipDistancesWrittenMap != 0)
             {
-                int location = BitOperations.TrailingZeroCount(vacMap);
+                int index = BitOperations.TrailingZeroCount(clipDistancesWrittenMap);
+
+                _offsets.Add(new IoDefinition(storageKind, IoVariable.ClipDistance, 0, index), offset++);
+
+                clipDistancesWrittenMap &= ~(1 << index);
+            }
+
+            if (vacUsage.UsesRtLayer)
+            {
+                _offsets.Add(new IoDefinition(storageKind, IoVariable.Layer), offset++);
+            }
+
+            if (vacUsage.UsesViewportIndex && gpuAccessor.QueryHostSupportsViewportIndexVertexTessellation())
+            {
+                _offsets.Add(new IoDefinition(storageKind, IoVariable.VertexIndex), offset++);
+            }
+
+            if (vacUsage.UsesViewportMask && gpuAccessor.QueryHostSupportsViewportMask())
+            {
+                _offsets.Add(new IoDefinition(storageKind, IoVariable.ViewportMask), offset++);
+            }
+
+            int usedDefinedMap = vacUsage.UserDefinedMap;
+
+            while (usedDefinedMap != 0)
+            {
+                int location = BitOperations.TrailingZeroCount(usedDefinedMap);
 
                 for (int c = 0; c < 4; c++)
                 {
                     _offsets.Add(new IoDefinition(storageKind, IoVariable.UserDefined, location, c), offset++);
                 }
 
-                vacMap &= ~(1 << location);
+                usedDefinedMap &= ~(1 << location);
             }
 
             return offset;
         }
 
-        internal static bool IsVectorVariable(IoVariable variable)
+        internal static bool IsVectorOrArrayVariable(IoVariable variable)
         {
             return variable switch
             {
+                IoVariable.ClipDistance or
                 IoVariable.Position => true,
                 _ => false,
             };
