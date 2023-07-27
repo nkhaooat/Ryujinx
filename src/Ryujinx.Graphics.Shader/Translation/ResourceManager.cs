@@ -64,12 +64,17 @@ namespace Ryujinx.Graphics.Shader.Translation
             IGpuAccessor gpuAccessor,
             bool isTransformFeedbackEmulated = false,
             bool vertexAsCompute = false,
-            int vacInputMap = 0,
-            int vacOutputMap = 0)
+            IoUsage vacInput = default,
+            IoUsage vacOutput = default)
         {
             _gpuAccessor = gpuAccessor;
             Properties = new();
-            Reservations = new(isTransformFeedbackEmulated, vertexAsCompute, stage == ShaderStage.Geometry ? vacInputMap : null, vacOutputMap);
+            Reservations = new(
+                gpuAccessor,
+                isTransformFeedbackEmulated,
+                vertexAsCompute,
+                stage == ShaderStage.Geometry ? vacInput : null,
+                vacOutput);
             _stage = stage;
             _stagePrefix = GetShaderStagePrefix(stage);
 

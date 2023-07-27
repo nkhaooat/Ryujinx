@@ -336,7 +336,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             }
             else
             {
-                if (ResourceReservations.IsVectorVariable(ioVariable))
+                if (ResourceReservations.IsVectorOrArrayVariable(ioVariable))
                 {
                     int component = operation.GetSource(operation.SourcesCount - (isStore ? 2 : 1)).Value;
 

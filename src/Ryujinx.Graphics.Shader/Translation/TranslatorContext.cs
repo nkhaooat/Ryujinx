@@ -19,7 +19,7 @@ namespace Ryujinx.Graphics.Shader.Translation
     {
         private readonly DecodedProgram _program;
         private readonly int _localMemorySize;
-        private int _vertexOutputMap;
+        private IoUsage _vertexOutput;
 
         public ulong Address { get; }
         public int Size { get; }
@@ -56,7 +56,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             Size = size;
             _program = program;
             _localMemorySize = localMemorySize;
-            _vertexOutputMap = -1;
+            _vertexOutput = new IoUsage(FeatureFlags.None, 0, -1);
             Definitions = definitions;
             GpuAccessor = gpuAccessor;
             Options = options;
@@ -406,8 +406,8 @@ namespace Ryujinx.Graphics.Shader.Translation
                 GpuAccessor,
                 isTransformFeedbackEmulated,
                 vertexAsCompute,
-                _vertexOutputMap,
-                _program.AttributeUsage.UsedOutputAttributes);
+                _vertexOutput,
+                _program.GetIoUsage());
 
             if (isTransformFeedbackEmulated)
             {
@@ -530,15 +530,16 @@ namespace Ryujinx.Graphics.Shader.Translation
             bool isTransformFeedbackEmulated = !GpuAccessor.QueryHostSupportsTransformFeedback() && GpuAccessor.QueryTransformFeedbackEnabled();
 
             return new ResourceReservations(
+                GpuAccessor,
                 isTransformFeedbackEmulated,
                 vertexAsCompute: true,
-                _vertexOutputMap,
-                _program.AttributeUsage.UsedOutputAttributes);
+                _vertexOutput,
+                _program.GetIoUsage());
         }
 
         public void SetVertexOutputMapForGeometryAsCompute(TranslatorContext vertexContext)
         {
-            _vertexOutputMap = vertexContext._program.AttributeUsage.UsedOutputAttributes;
+            _vertexOutput = vertexContext._program.GetIoUsage();
         }
 
         public ShaderProgram GenerateVertexPassthroughForCompute()
@@ -605,7 +606,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                     context.Store(StorageKind.Output, ioDefinition.IoVariable, null, Const(ioDefinition.Location), Const(ioDefinition.Component), value);
                     attributeUsage.SetOutputUserAttribute(ioDefinition.Location);
                 }
-                else if (ResourceReservations.IsVectorVariable(ioDefinition.IoVariable))
+                else if (ResourceReservations.IsVectorOrArrayVariable(ioDefinition.IoVariable))
                 {
                     context.Store(StorageKind.Output, ioDefinition.IoVariable, null, Const(ioDefinition.Component), value);
                 }
