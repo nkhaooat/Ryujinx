@@ -141,6 +141,16 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
             public ShaderStage Stage;
 
             /// <summary>
+            /// Number of vertices that each output primitive has on a geometry shader.
+            /// </summary>
+            public byte GeometryVerticesPerPrimitive;
+
+            /// <summary>
+            /// Maximum number of vertices that a geometry shader may generate.
+            /// </summary>
+            public ushort GeometryMaxOutputVertices;
+
+            /// <summary>
             /// Indicates if the fragment shader accesses the fragment coordinate built-in variable.
             /// </summary>
             public bool UsesFragCoord;
@@ -786,6 +796,8 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 ShaderIdentification.None,
                 0,
                 dataInfo.Stage,
+                dataInfo.GeometryVerticesPerPrimitive,
+                dataInfo.GeometryMaxOutputVertices,
                 dataInfo.UsesFragCoord,
                 dataInfo.UsesInstanceId,
                 dataInfo.UsesDrawParameters,
@@ -813,6 +825,8 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 TexturesCount = (ushort)info.Textures.Count,
                 ImagesCount = (ushort)info.Images.Count,
                 Stage = info.Stage,
+                GeometryVerticesPerPrimitive = (byte)info.GeometryVerticesPerPrimitive,
+                GeometryMaxOutputVertices = (ushort)info.GeometryMaxOutputVertices,
                 UsesFragCoord = info.UsesFragCoord,
                 UsesInstanceId = info.UsesInstanceId,
                 UsesDrawParameters = info.UsesDrawParameters,

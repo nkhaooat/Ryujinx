@@ -15,6 +15,11 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
 
         public static LinkedListNode<INode> RunPass(TransformContext context, LinkedListNode<INode> node)
         {
+            if (context.Definitions.Stage != ShaderStage.Vertex)
+            {
+                return node;
+            }
+
             Operation operation = (Operation)node.Value;
 
             LinkedListNode<INode> newNode = node;
@@ -88,10 +93,15 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                                 newNode = CopyMasked(context.ResourceManager, newNode, location, component, dest, temp);
                             }
                         }
-
                         break;
                     case IoVariable.GlobalInvocationId:
-                        // We generate that for those compute shaders.
+                    case IoVariable.SubgroupEqMask:
+                    case IoVariable.SubgroupGeMask:
+                    case IoVariable.SubgroupGtMask:
+                    case IoVariable.SubgroupLaneId:
+                    case IoVariable.SubgroupLeMask:
+                    case IoVariable.SubgroupLtMask:
+                        // Those are valid or expected for vertex shaders.
                         break;
                     default:
                         context.GpuAccessor.Log($"Invalid input \"{(IoVariable)operation.GetSource(0).Value}\".");
@@ -154,7 +164,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 isInstanceRate,
-                new[] { Const(vertexInfoCbBinding), Const(2), Const(location) }));
+                new[] { Const(vertexInfoCbBinding), Const(3), Const(location) }));
 
             Operand vertexId = Local();
             node.List.AddBefore(node, new Operation(
@@ -167,7 +177,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 vertexStride,
-                new[] { Const(vertexInfoCbBinding), Const(1), Const(location), Const(0) }));
+                new[] { Const(vertexInfoCbBinding), Const(2), Const(location), Const(0) }));
 
             Operand vertexBaseOffset = Local();
             node.List.AddBefore(node, new Operation(Instruction.Multiply, vertexBaseOffset, new[] { vertexId, vertexStride }));
@@ -229,12 +239,12 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 componentExists,
-                new[] { Const(vertexInfoCbBinding), Const(1), Const(location), Const(component) }));
+                new[] { Const(vertexInfoCbBinding), Const(2), Const(location), Const(component) }));
 
             return node.List.AddAfter(node, new Operation(
                 Instruction.ConditionalSelect,
                 dest,
-                new[] { componentExists, src, ConstF(0) }));
+                new[] { componentExists, src, ConstF(component == 3 ? 1f : 0f) }));
         }
 
         private static LinkedListNode<INode> GenerateBaseVertexLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
@@ -283,7 +293,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 instanceId,
                 new[] { Const((int)IoVariable.GlobalInvocationId), Const(1) }));
 
-            return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseInstance, instanceId }));
+            return node.List.AddBefore(node, new Operation(Instruction.Add, dest, new[] { baseInstance, instanceId }));
         }
 
         private static LinkedListNode<INode> GenerateVertexIdVertexRateLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
@@ -317,22 +327,24 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
 
             if (ioVariable == IoVariable.UserDefined)
             {
-                int location = operation.GetSource(1).Value;
-                int component = operation.GetSource(2).Value;
+                int lastIndex = operation.SourcesCount - (isStore ? 2 : 1);
 
-                isValidOutput = resourceManager.Reservations.TryGetOutputOffset(location, component, out outputOffset);
+                int location = operation.GetSource(1).Value;
+                int component = operation.GetSource(lastIndex).Value;
+
+                isValidOutput = resourceManager.Reservations.TryGetOffset(StorageKind.Output, location, component, out outputOffset);
             }
             else
             {
-                if (operation.SourcesCount > (isStore ? 2 : 1))
+                if (ResourceReservations.IsVectorVariable(ioVariable))
                 {
-                    int component = operation.GetSource(1).Value;
+                    int component = operation.GetSource(operation.SourcesCount - (isStore ? 2 : 1)).Value;
 
-                    isValidOutput = resourceManager.Reservations.TryGetOutputOffset(ioVariable, component, out outputOffset);
+                    isValidOutput = resourceManager.Reservations.TryGetOffset(StorageKind.Output, ioVariable, component, out outputOffset);
                 }
                 else
                 {
-                    isValidOutput = resourceManager.Reservations.TryGetOutputOffset(ioVariable, out outputOffset);
+                    isValidOutput = resourceManager.Reservations.TryGetOffset(StorageKind.Output, ioVariable, out outputOffset);
                 }
             }
 

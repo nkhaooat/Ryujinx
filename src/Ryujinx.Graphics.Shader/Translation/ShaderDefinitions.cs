@@ -327,6 +327,16 @@ namespace Ryujinx.Graphics.Shader.Translation
             return _graphicsState.AttributeTypes[location].HasFlag(AttributeType.PackedRgb10A2Signed);
         }
 
+        public int GetGeometryOutputIndexBufferStride()
+        {
+            return MaxOutputVertices + OutputTopology switch
+            {
+                OutputTopology.LineStrip => MaxOutputVertices / 2,
+                OutputTopology.TriangleStrip => MaxOutputVertices / 3,
+                _ => MaxOutputVertices,
+            };
+        }
+
         public ShaderDefinitions AsCompute(int computeLocalSizeX, int computeLocalSizeY, int computeLocalSizeZ)
         {
             ShaderDefinitions definitions = new(ShaderStage.Compute, computeLocalSizeX, computeLocalSizeY, computeLocalSizeZ);

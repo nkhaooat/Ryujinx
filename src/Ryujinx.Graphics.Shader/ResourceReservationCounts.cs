@@ -30,11 +30,11 @@ namespace Ryujinx.Graphics.Shader
                 // One constant buffer reserved for vertex related state.
                 ReservedConstantBuffers++;
 
-                // One storage buffer for the output vertex data.
-                ReservedStorageBuffers++;
+                // One storage buffer for the output vertex data, two for geometry output vertex and index data.
+                ReservedStorageBuffers += 3;
 
-                // Enough textures reserved for all vertex attributes, plus the index buffer.
-                ReservedTextures += 1 + MaxVertexBufferTextures;
+                // Enough textures reserved for all vertex attributes, plus the index and topology remap buffers.
+                ReservedTextures += 2 + MaxVertexBufferTextures;
             }
         }
     }
