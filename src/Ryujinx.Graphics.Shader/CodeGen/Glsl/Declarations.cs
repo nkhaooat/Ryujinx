@@ -99,10 +99,7 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
                     else
                     {
                         string outPrimitive = context.Definitions.OutputTopology.ToGlslString();
-
-                        int maxOutputVertices = context.Definitions.GpPassthrough
-                            ? context.Definitions.InputTopology.ToInputVerticesNoAdjacency()
-                            : context.Definitions.MaxOutputVertices;
+                        int maxOutputVertices = context.Definitions.MaxOutputVertices;
 
                         context.AppendLine($"layout ({outPrimitive}, max_vertices = {maxOutputVertices}) out;");
                     }

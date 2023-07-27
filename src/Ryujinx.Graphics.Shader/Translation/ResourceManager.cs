@@ -59,22 +59,11 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         public ResourceReservations Reservations { get; }
 
-        public ResourceManager(
-            ShaderStage stage,
-            IGpuAccessor gpuAccessor,
-            bool isTransformFeedbackEmulated = false,
-            bool vertexAsCompute = false,
-            IoUsage vacInput = default,
-            IoUsage vacOutput = default)
+        public ResourceManager(ShaderStage stage, IGpuAccessor gpuAccessor, ResourceReservations reservations = null)
         {
             _gpuAccessor = gpuAccessor;
             Properties = new();
-            Reservations = new(
-                gpuAccessor,
-                isTransformFeedbackEmulated,
-                vertexAsCompute,
-                stage == ShaderStage.Geometry ? vacInput : null,
-                vacOutput);
+            Reservations = reservations;
             _stage = stage;
             _stagePrefix = GetShaderStagePrefix(stage);
 

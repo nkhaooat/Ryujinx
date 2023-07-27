@@ -151,6 +151,11 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
             public ushort GeometryMaxOutputVertices;
 
             /// <summary>
+            /// Number of invocations per primitive on tessellation or geometry shaders.
+            /// </summary>
+            public ushort ThreadsPerInputPrimitive;
+
+            /// <summary>
             /// Indicates if the fragment shader accesses the fragment coordinate built-in variable.
             /// </summary>
             public bool UsesFragCoord;
@@ -798,6 +803,7 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 dataInfo.Stage,
                 dataInfo.GeometryVerticesPerPrimitive,
                 dataInfo.GeometryMaxOutputVertices,
+                dataInfo.ThreadsPerInputPrimitive,
                 dataInfo.UsesFragCoord,
                 dataInfo.UsesInstanceId,
                 dataInfo.UsesDrawParameters,
@@ -827,6 +833,7 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 Stage = info.Stage,
                 GeometryVerticesPerPrimitive = (byte)info.GeometryVerticesPerPrimitive,
                 GeometryMaxOutputVertices = (ushort)info.GeometryMaxOutputVertices,
+                ThreadsPerInputPrimitive = (ushort)info.ThreadsPerInputPrimitive,
                 UsesFragCoord = info.UsesFragCoord,
                 UsesInstanceId = info.UsesInstanceId,
                 UsesDrawParameters = info.UsesDrawParameters,

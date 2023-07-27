@@ -415,7 +415,7 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Spirv
 
             if (!isPerPatch && IoMap.IsPerVertex(ioVariable, context.Definitions.Stage, isOutput))
             {
-                int arraySize = context.Definitions.Stage == ShaderStage.Geometry ? context.InputVertices : 32;
+                int arraySize = context.Definitions.Stage == ShaderStage.Geometry ? context.Definitions.InputTopology.ToInputVertices() : 32;
                 spvType = context.TypeArray(spvType, context.Constant(context.TypeU32(), arraySize));
 
                 if (context.Definitions.GpPassthrough && context.HostCapabilities.SupportsGeometryShaderPassthrough)
