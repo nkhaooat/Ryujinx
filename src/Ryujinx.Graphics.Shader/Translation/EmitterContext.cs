@@ -101,6 +101,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 Operand instanceCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(1));
                 Operand firstVertex = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(2));
                 Operand firstInstance = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(3));
+                Operand ibBaseOffset = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(1), Const(3));
                 Operand isInstanceOob = this.ICompareGreaterOrEqualUnsigned(outputInstanceOffset, instanceCount);
 
                 Operand lblInstanceInBounds = Label();
@@ -119,7 +120,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                         ResourceManager.Reservations.GetIndexBufferTextureBinding(),
                         1,
                         new[] { vertexIndexVr },
-                        new[] { outputVertexOffset });
+                        new[] { this.IAdd(ibBaseOffset, outputVertexOffset) });
 
                     this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexVertexRateMemoryId, this.IAdd(firstVertex, vertexIndexVr));
                     this.Store(StorageKind.LocalMemory, ResourceManager.LocalVertexIndexInstanceRateMemoryId, this.IAdd(firstInstance, outputInstanceOffset));

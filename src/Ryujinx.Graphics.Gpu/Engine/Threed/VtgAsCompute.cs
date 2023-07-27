@@ -199,7 +199,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
             if (indexed)
             {
-                SetIndexBufferTexture(vertexAsCompute.Reservations, firstIndex, count);
+                SetIndexBufferTexture(vertexAsCompute.Reservations, firstIndex, count, ref vertexInfo[7]);
             }
             else
             {
@@ -355,32 +355,36 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.GetVertexBufferTextureBinding(index), bufferTexture, null);
         }
 
-        private void SetIndexBufferTexture(ResourceReservations reservations, int firstIndex, int count)
+        private void SetIndexBufferTexture(ResourceReservations reservations, int firstIndex, int count, ref int misalignedOffset)
         {
             ulong address = _state.State.IndexBufferState.Address.Pack();
             ulong indexOffset = (ulong)firstIndex;
             ulong size = (ulong)count;
 
+            int shift = 0;
             Format format = Format.R8Uint;
 
             switch (_state.State.IndexBufferState.Type)
             {
                 case IndexType.UShort:
-                    indexOffset <<= 1;
-                    size <<= 1;
+                    shift = 1;
                     format = Format.R16Uint;
                     break;
                 case IndexType.UInt:
-                    indexOffset <<= 2;
-                    size <<= 2;
+                    shift = 2;
                     format = Format.R32Uint;
                     break;
             }
 
+            indexOffset <<= shift;
+            size <<= shift;
+
             var memoryManager = _channel.MemoryManager;
 
             address = memoryManager.Translate(address + indexOffset);
-            BufferRange range = memoryManager.Physical.BufferCache.GetBufferRange(address, size);
+            ulong misalign = address & ((ulong)_context.Capabilities.TextureBufferOffsetAlignment - 1);
+            BufferRange range = memoryManager.Physical.BufferCache.GetBufferRange(address - misalign, size + misalign);
+            misalignedOffset = (int)misalign >> shift;
 
             ITexture bufferTexture = EnsureBufferTexutre(0, format);
             bufferTexture.SetStorage(range);
