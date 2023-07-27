@@ -612,6 +612,7 @@ namespace Ryujinx.Graphics.Vulkan
                 maximumComputeSharedMemorySize: (int)limits.MaxComputeSharedMemorySize,
                 maximumSupportedAnisotropy: (int)limits.MaxSamplerAnisotropy,
                 storageBufferOffsetAlignment: (int)limits.MinStorageBufferOffsetAlignment,
+                textureBufferOffsetAlignment: (int)limits.MinTexelBufferOffsetAlignment,
                 gatherBiasPrecision: IsIntelWindows || IsAmdWindows ? (int)Capabilities.SubTexelPrecisionBits : 0);
         }
 

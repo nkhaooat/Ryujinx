@@ -159,12 +159,19 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand vertexIdIr = Local();
             GenerateVertexIdInstanceRateLoad(resourceManager, node, vertexIdIr);
 
+            Operand attributeOffset = Local();
+            node.List.AddBefore(node, new Operation(
+                Instruction.Load,
+                StorageKind.ConstantBuffer,
+                attributeOffset,
+                new[] { Const(vertexInfoCbBinding), Const(3), Const(location), Const(0) }));
+
             Operand isInstanceRate = Local();
             node.List.AddBefore(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 isInstanceRate,
-                new[] { Const(vertexInfoCbBinding), Const(3), Const(location) }));
+                new[] { Const(vertexInfoCbBinding), Const(3), Const(location), Const(1) }));
 
             Operand vertexId = Local();
             node.List.AddBefore(node, new Operation(
@@ -182,17 +189,20 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand vertexBaseOffset = Local();
             node.List.AddBefore(node, new Operation(Instruction.Multiply, vertexBaseOffset, new[] { vertexId, vertexStride }));
 
+            Operand vertexOffset = Local();
+            node.List.AddBefore(node, new Operation(Instruction.Add, vertexOffset, new[] { attributeOffset, vertexBaseOffset }));
+
             Operand vertexElemOffset;
 
             if (component != 0)
             {
                 vertexElemOffset = Local();
 
-                node.List.AddBefore(node, new Operation(Instruction.Add, vertexElemOffset, new[] { vertexBaseOffset, Const(component) }));
+                node.List.AddBefore(node, new Operation(Instruction.Add, vertexElemOffset, new[] { vertexOffset, Const(component) }));
             }
             else
             {
-                vertexElemOffset = vertexBaseOffset;
+                vertexElemOffset = vertexOffset;
             }
 
             return vertexElemOffset;

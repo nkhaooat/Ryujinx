@@ -175,6 +175,7 @@ namespace Ryujinx.Graphics.OpenGL
                 maximumComputeSharedMemorySize: HwCapabilities.MaximumComputeSharedMemorySize,
                 maximumSupportedAnisotropy: HwCapabilities.MaximumSupportedAnisotropy,
                 storageBufferOffsetAlignment: HwCapabilities.StorageBufferOffsetAlignment,
+                textureBufferOffsetAlignment: HwCapabilities.TextureBufferOffsetAlignment,
                 gatherBiasPrecision: intelWindows || amdWindows ? 8 : 0); // Precision is 8 for these vendors on Vulkan.
         }
 

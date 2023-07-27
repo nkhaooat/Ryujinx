@@ -184,12 +184,16 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                 int componentSize = format.GetScalarSize();
 
                 address += attributeOffset;
-                vbSize = Align(vbSize - attributeOffset, componentSize);
 
-                SetBufferTexture(vertexAsCompute.Reservations, index, format, address, vbSize);
+                ulong misalign = address & ((ulong)_context.Capabilities.TextureBufferOffsetAlignment - 1);
+
+                vbSize = Align(vbSize - attributeOffset + misalign, componentSize);
+
+                SetBufferTexture(vertexAsCompute.Reservations, index, format, address - misalign, vbSize);
 
                 vertexInfo[8 + index * 4] = vbStride / componentSize;
-                vertexInfo[8 + 32 * 4 + index * 4] = instanced ? vertexBuffer.Divisor : 0;
+                vertexInfo[8 + 32 * 4 + index * 4] = (int)misalign / componentSize;
+                vertexInfo[8 + 32 * 4 + index * 4 + 1] = instanced ? vertexBuffer.Divisor : 0;
             }
 
             if (indexed)
