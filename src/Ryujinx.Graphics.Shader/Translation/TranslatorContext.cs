@@ -329,6 +329,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 funcs,
                 AttributeUsage,
                 GetDefinitions(asCompute),
+                Definitions,
                 resourceManager,
                 usedFeatures,
                 clipDistancesWritten,
@@ -340,6 +341,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             IReadOnlyList<Function> funcs,
             AttributeUsage attributeUsage,
             ShaderDefinitions definitions,
+            ShaderDefinitions originalDefinitions,
             ResourceManager resourceManager,
             FeatureFlags usedFeatures,
             byte clipDistancesWritten,
@@ -367,16 +369,16 @@ namespace Ryujinx.Graphics.Shader.Translation
                 resourceManager.GetImageDescriptors(),
                 identification,
                 layerInputAttr,
-                definitions.Stage,
+                originalDefinitions.Stage,
                 geometryVerticesPerPrimitive,
-                Definitions.MaxOutputVertices,
-                Definitions.ThreadsPerInputPrimitive,
+                originalDefinitions.MaxOutputVertices,
+                originalDefinitions.ThreadsPerInputPrimitive,
                 usedFeatures.HasFlag(FeatureFlags.FragCoordXY),
                 usedFeatures.HasFlag(FeatureFlags.InstanceId),
                 usedFeatures.HasFlag(FeatureFlags.DrawParameters),
                 usedFeatures.HasFlag(FeatureFlags.RtLayer),
                 clipDistancesWritten,
-                definitions.OmapTargets);
+                originalDefinitions.OmapTargets);
 
             var hostCapabilities = new HostCapabilities(
                 GpuAccessor.QueryHostReducedPrecision(),
@@ -619,7 +621,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             var definitions = new ShaderDefinitions(ShaderStage.Vertex);
 
-            return Generate(new[] { function }, attributeUsage, definitions, resourceManager, FeatureFlags.None, 0);
+            return Generate(new[] { function }, attributeUsage, definitions, definitions, resourceManager, FeatureFlags.None, 0);
         }
 
         public ShaderProgram GenerateGeometryPassthrough()
@@ -703,7 +705,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 outputTopology,
                 maxOutputVertices);
 
-            return Generate(new[] { function }, attributeUsage, definitions, resourceManager, FeatureFlags.RtLayer, 0);
+            return Generate(new[] { function }, attributeUsage, definitions, definitions, resourceManager, FeatureFlags.RtLayer, 0);
         }
     }
 }

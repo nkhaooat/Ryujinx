@@ -89,17 +89,15 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// Adds information from a given shader stage.
         /// </summary>
         /// <param name="info">Shader stage information</param>
-        /// <param name="stageOverride">Optional shader stage override</param>
-        public void AddStageInfo(ShaderProgramInfo info, ShaderStage? stageOverride = null)
+        /// <param name="vertexAsCompute">True if the shader stage has been converted into a compute shader</param>
+        public void AddStageInfo(ShaderProgramInfo info, bool vertexAsCompute = false)
         {
             if (info.Stage == ShaderStage.Fragment)
             {
                 _fragmentOutputMap = info.FragmentOutputMap;
             }
 
-            ShaderStage stage = stageOverride ?? info.Stage;
-
-            int stageIndex = GpuAccessorBase.GetStageIndex(stage switch
+            int stageIndex = GpuAccessorBase.GetStageIndex(info.Stage switch
             {
                 ShaderStage.TessellationControl => 1,
                 ShaderStage.TessellationEvaluation => 2,
@@ -108,7 +106,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 _ => 0,
             });
 
-            ResourceStages stages = info.Stage switch
+            ResourceStages stages = vertexAsCompute ? ResourceStages.Compute : info.Stage switch
             {
                 ShaderStage.Compute => ResourceStages.Compute,
                 ShaderStage.Vertex => ResourceStages.Vertex,
@@ -309,14 +307,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// </summary>
         /// <param name="context">GPU context that owns the shader</param>
         /// <param name="info">Compute shader information</param>
-        /// <param name="originalStage">Shader stage before it was converted to compute</param>
         /// <param name="fromCache">True if the compute shader comes from a disk cache, false otherwise</param>
         /// <returns>Shader information</returns>
-        public static ShaderInfo BuildForVertexAsCompute(GpuContext context, ShaderProgramInfo info, ShaderStage originalStage, bool fromCache = false)
+        public static ShaderInfo BuildForVertexAsCompute(GpuContext context, ShaderProgramInfo info, bool fromCache = false)
         {
             ShaderInfoBuilder builder = new(context, tfEnabled: false, vertexAsCompute: true);
 
-            builder.AddStageInfo(info, originalStage);
+            builder.AddStageInfo(info, vertexAsCompute: true);
 
             return builder.Build(null, fromCache);
         }
