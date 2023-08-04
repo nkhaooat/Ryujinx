@@ -548,6 +548,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
 
             DrawImpl(engine, count, instanceCount, firstIndex, firstVertex, firstInstance, indexed);
 
+            if (indexed)
+            {
+                _state.State.FirstVertex = 0;
+            }
+
             _state.State.FirstInstance = 0;
 
             _drawState.DrawIndexed = false;
