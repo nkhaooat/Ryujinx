@@ -8,7 +8,7 @@ using Ryujinx.Graphics.Shader;
 using Ryujinx.Graphics.Shader.Translation;
 using System;
 
-namespace Ryujinx.Graphics.Gpu.Engine.Threed
+namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 {
     struct VtgAsComputeState
     {
