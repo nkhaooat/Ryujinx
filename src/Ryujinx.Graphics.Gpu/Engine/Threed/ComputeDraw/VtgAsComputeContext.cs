@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace Ryujinx.Graphics.Gpu.Engine.Threed
+namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 {
     class VtgAsComputeContext
     {
