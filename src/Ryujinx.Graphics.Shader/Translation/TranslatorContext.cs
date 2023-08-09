@@ -541,13 +541,270 @@ namespace Ryujinx.Graphics.Shader.Translation
             _vertexOutput = vertexContext._program.GetIoUsage();
         }
 
-        public ShaderProgram GenerateVertexPassthroughForCompute()
+        public ShaderProgram GenerateFeedbackForCompute()
         {
-            const int VertexInfoCbBinding = 1;
-            const int VertexDataSbBinding = 0;
-
             var attributeUsage = new AttributeUsage(GpuAccessor);
             var resourceManager = new ResourceManager(ShaderStage.Vertex, GpuAccessor);
+
+            var reservations = GetResourceReservations();
+
+            int vertexInfoCbBinding = reservations.GetVertexInfoConstantBufferBinding();
+            int vertexDataSbBinding = reservations.GetVertexOutputStorageBufferBinding();
+            int indexDataTexBinding = reservations.GetIndexBufferTextureBinding();
+            int remapDataTexBinding = reservations.GetTopologyRemapBufferTextureBinding();
+            int tfeInfoSbBinding = reservations.GetTfeInfoStorageBufferBinding();
+
+            StructureType vertexInfoStruct = new(new StructureField[]
+            {
+                new StructureField(AggregateType.Vector4 | AggregateType.U32, "vertex_counts"),
+                new StructureField(AggregateType.Vector4 | AggregateType.U32, "geometry_counts"),
+            });
+
+            BufferDefinition vertexInfoBuffer = new(BufferLayout.Std140, 0, vertexInfoCbBinding, "vb_info", vertexInfoStruct);
+            resourceManager.Properties.AddOrUpdateConstantBuffer(vertexInfoBuffer);
+
+            StructureType vertexInputStruct = new(new StructureField[]
+            {
+                new StructureField(AggregateType.Array | AggregateType.FP32, "data", 0)
+            });
+
+            BufferDefinition vertexOutputBuffer = new(BufferLayout.Std430, 1, vertexDataSbBinding, "vb_input", vertexInputStruct);
+            resourceManager.Properties.AddOrUpdateStorageBuffer(vertexOutputBuffer);
+
+            int baseIndexMemoryId = resourceManager.Properties.AddLocalMemory(new("base_index", AggregateType.U32));
+            int indexCountMemoryId = resourceManager.Properties.AddLocalMemory(new("index_count", AggregateType.U32));
+            int currentVertexMemoryId = resourceManager.Properties.AddLocalMemory(new("current_vertex", AggregateType.U32));
+            int outputVertexMemoryId = resourceManager.Properties.AddLocalMemory(new("output_vertex", AggregateType.U32));
+
+            TextureDefinition indexBuffer = new(2, indexDataTexBinding, "ib_data", SamplerType.TextureBuffer, TextureFormat.Unknown, TextureUsageFlags.None);
+            resourceManager.Properties.AddOrUpdateTexture(indexBuffer);
+
+            TextureDefinition remapBuffer = new(2, remapDataTexBinding, "trb_data", SamplerType.TextureBuffer, TextureFormat.Unknown, TextureUsageFlags.None);
+            resourceManager.Properties.AddOrUpdateTexture(remapBuffer);
+
+            StructureType tfeInfoStruct = new(new StructureField[]
+            {
+                new StructureField(AggregateType.Array | AggregateType.U32, "base_offset", 4),
+                new StructureField(AggregateType.U32, "vertex_count")
+            });
+
+            BufferDefinition tfeInfoBuffer = new(BufferLayout.Std430, 1, tfeInfoSbBinding, "tfe_info", tfeInfoStruct);
+            resourceManager.Properties.AddOrUpdateStorageBuffer(tfeInfoBuffer);
+
+            StructureType tfeDataStruct = new(new StructureField[]
+            {
+                new StructureField(AggregateType.Array | AggregateType.U32, "data", 0)
+            });
+
+            for (int i = 0; i < ResourceReservations.TfeBuffersCount; i++)
+            {
+                int binding = reservations.GetTfeBufferStorageBufferBinding(i);
+                BufferDefinition tfeDataBuffer = new(BufferLayout.Std430, 1, binding, $"tfe_data{i}", tfeDataStruct);
+                resourceManager.Properties.AddOrUpdateStorageBuffer(tfeDataBuffer);
+            }
+
+            var context = new EmitterContext();
+
+            // Main loop start.
+
+            Operand lblLoopHead = Label();
+
+            Operand ibIndexCount = context.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(1), Const(1));
+            Operand primitiveRestartValue = context.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(1), Const(2));
+
+            context.Store(StorageKind.LocalMemory, outputVertexMemoryId, Const(0));
+
+            context.MarkLabel(lblLoopHead);
+
+            Operand baseIndex = context.Load(StorageKind.LocalMemory, baseIndexMemoryId);
+
+            context.Store(StorageKind.LocalMemory, indexCountMemoryId, Const(0));
+
+            // First inner loop:
+            // Find primitive restart value on the index buffer (if any), count amount of vertices until the restart or end of the buffer.
+
+            Operand lblCounterLoopHead = Label();
+            Operand lblCounterLoopExit = Label();
+
+            context.MarkLabel(lblCounterLoopHead);
+
+            Operand indexCount = context.Load(StorageKind.LocalMemory, indexCountMemoryId);
+            Operand currentIndexValue = Local();
+
+            Operand currentIndex = context.IAdd(baseIndex, indexCount);
+
+            context.TextureSample(
+                SamplerType.TextureBuffer,
+                TextureFlags.IntCoords,
+                indexDataTexBinding,
+                1,
+                new[] { currentIndexValue },
+                new[] { currentIndex });
+
+            context.Store(StorageKind.LocalMemory, indexCountMemoryId, context.IAdd(indexCount, Const(1)));
+            context.BranchIfTrue(lblCounterLoopExit, context.ICompareEqual(currentIndexValue, primitiveRestartValue));
+            context.BranchIfTrue(lblCounterLoopHead, context.ICompareLess(currentIndex, ibIndexCount));
+
+            context.MarkLabel(lblCounterLoopExit);
+
+            // Calculate non-strip vertex count based on contiguous indices that we counted.
+
+            indexCount = context.Load(StorageKind.LocalMemory, indexCountMemoryId);
+
+            Operand vertexStripCount = context.ISubtract(indexCount, Const(1));
+            Operand vertexCount;
+
+            if (Definitions.Stage == ShaderStage.Geometry)
+            {
+                vertexCount = Definitions.OutputTopology switch
+                {
+                    OutputTopology.LineStrip => context.ShiftLeft(context.ISubtract(vertexStripCount, Const(1)), Const(1)),
+                    OutputTopology.TriangleStrip => context.IMultiply(context.ISubtract(vertexStripCount, Const(2)), Const(3)),
+                    _ => vertexStripCount,
+                };
+            }
+            else
+            {
+                // Note that this will feedback incomplete primitives, if they exist on the input, in some cases.
+                // It might be worth "rounding" the vertex count in all cases in the future, but it might
+                // require doing an integer division on the shader.
+
+                Operand SelectIfGreaterThanOne(Operand value)
+                {
+                    return context.ConditionalSelect(context.ICompareGreater(value, Const(1)), value, Const(0));
+                }
+
+                vertexCount = Definitions.InputTopologyForVertex switch
+                {
+                    InputTopologyForVertex.LineLoop => context.ShiftLeft(SelectIfGreaterThanOne(vertexStripCount), Const(1)),
+                    InputTopologyForVertex.LineStrip => context.ShiftLeft(context.ISubtract(vertexStripCount, Const(1)), Const(1)),
+                    InputTopologyForVertex.LineStripAdjacency => context.ShiftLeft(context.ISubtract(vertexStripCount, Const(3)), Const(2)),
+                    InputTopologyForVertex.TriangleStrip or
+                    InputTopologyForVertex.TriangleFan or
+                    InputTopologyForVertex.Polygon or
+                    InputTopologyForVertex.LineStripAdjacency => context.IMultiply(context.ISubtract(vertexStripCount, Const(2)), Const(3)),
+                    InputTopologyForVertex.Quads => context.IMultiply(context.ShiftRightS32(vertexStripCount, Const(2)), Const(6)), // In triangles.
+                    InputTopologyForVertex.QuadStrip => context.IMultiply(context.ShiftRightS32(context.ISubtract(vertexStripCount, Const(2)), Const(1)), Const(6)), // In triangles.
+                    _ => vertexStripCount,
+                };
+            }
+
+            // Second inner loop:
+            // Write output vertices for a batch of primitives into the transform feedback buffer.
+
+            context.Store(StorageKind.LocalMemory, currentVertexMemoryId, Const(0));
+
+            Operand lblFeedbackLoopHead = Label();
+
+            context.MarkLabel(lblFeedbackLoopHead);
+
+            Operand currentVertex = context.Load(StorageKind.LocalMemory, currentVertexMemoryId);
+
+            Operand vertexRemapIndex = Local();
+
+            context.TextureSample(
+                SamplerType.TextureBuffer,
+                TextureFlags.IntCoords,
+                remapDataTexBinding,
+                1,
+                new[] { vertexRemapIndex },
+                new[] { currentVertex });
+
+            Operand vertexIndex = Local();
+
+            context.TextureSample(
+                SamplerType.TextureBuffer,
+                TextureFlags.IntCoords,
+                indexDataTexBinding,
+                1,
+                new[] { vertexIndex },
+                new[] { context.IAdd(baseIndex, vertexRemapIndex) });
+
+            Operand outputVertex = context.Load(StorageKind.LocalMemory, outputVertexMemoryId);
+
+            for (int tfbIndex = 0; tfbIndex < ResourceReservations.TfeBuffersCount; tfbIndex++)
+            {
+                var locations = GpuAccessor.QueryTransformFeedbackVaryingLocations(tfbIndex);
+                var stride = GpuAccessor.QueryTransformFeedbackStride(tfbIndex);
+
+                Operand outputBaseOffset = context.Load(StorageKind.StorageBuffer, tfeInfoSbBinding, Const(0), Const(tfbIndex));
+                Operand instanceOffset = context.Load(StorageKind.Input, IoVariable.GlobalInvocationId, null, Const(0));
+                Operand verticesPerInstance = context.Load(StorageKind.StorageBuffer, tfeInfoSbBinding, Const(1));
+                Operand baseVertex = context.IMultiply(instanceOffset, verticesPerInstance);
+                Operand outputVertexOffset = context.IMultiply(context.IAdd(baseVertex, outputVertex), Const(stride / 4));
+                outputBaseOffset = context.IAdd(outputBaseOffset, outputVertexOffset);
+
+                Operand inputBaseOffset = context.IMultiply(context.IAdd(baseVertex, vertexIndex), Const(reservations.OutputSizePerInvocation));
+
+                for (int j = 0; j < locations.Length; j++)
+                {
+                    byte location = locations[j];
+                    if (location == 0xff)
+                    {
+                        continue;
+                    }
+
+                    if (!Instructions.AttributeMap.TryGetIoDefinition(
+                        Definitions.Stage,
+                        location * 4,
+                        out IoVariable ioVariable,
+                        out int attrLocation,
+                        out int attrComponent))
+                    {
+                        continue;
+                    }
+
+                    if (!reservations.TryGetOffset(StorageKind.Output, ioVariable, attrLocation, attrComponent, out int inputOffset))
+                    {
+                        continue;
+                    }
+
+                    Operand outputOffset = context.IAdd(outputBaseOffset, Const(j));
+                    Operand vertexOffset = inputOffset != 0 ? context.IAdd(inputBaseOffset, Const(inputOffset)) : inputBaseOffset;
+                    Operand value = context.Load(StorageKind.StorageBuffer, vertexDataSbBinding, Const(0), vertexOffset);
+
+                    int binding = reservations.GetTfeBufferStorageBufferBinding(tfbIndex);
+
+                    context.Store(StorageKind.StorageBuffer, binding, Const(0), outputOffset, value);
+                }
+            }
+
+            currentVertex = context.IAdd(currentVertex, Const(1));
+            context.Store(StorageKind.LocalMemory, currentVertexMemoryId, currentVertex);
+            context.Store(StorageKind.LocalMemory, outputVertexMemoryId, context.IAdd(outputVertex, Const(1)));
+            context.BranchIfTrue(lblFeedbackLoopHead, context.ICompareLess(currentVertex, vertexCount));
+
+            // End of the main loop, continue until we reach the end of the index buffer.
+
+            Operand newBaseIndex = context.IAdd(baseIndex, indexCount);
+
+            context.Store(StorageKind.LocalMemory, baseIndexMemoryId, newBaseIndex);
+            context.BranchIfTrue(lblLoopHead, context.ICompareLess(newBaseIndex, ibIndexCount));
+
+            var operations = context.GetOperations();
+            var cfg = ControlFlowGraph.Create(operations);
+            var function = new Function(cfg.Blocks, "main", false, 0, 0);
+
+            var definitions = new ShaderDefinitions(ShaderStage.Compute, 1, 1, 1);
+
+            return Generate(
+                new[] { function },
+                attributeUsage,
+                definitions,
+                definitions,
+                resourceManager,
+                FeatureFlags.None,
+                0);
+        }
+
+        public ShaderProgram GenerateVertexPassthroughForCompute()
+        {
+            var attributeUsage = new AttributeUsage(GpuAccessor);
+            var resourceManager = new ResourceManager(ShaderStage.Vertex, GpuAccessor);
+
+            var reservations = GetResourceReservations();
+
+            int vertexInfoCbBinding = reservations.GetVertexInfoConstantBufferBinding();
 
             if (Stage == ShaderStage.Vertex)
             {
@@ -556,7 +813,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                     new StructureField(AggregateType.Vector4 | AggregateType.U32, "vertex_counts"),
                 });
 
-                BufferDefinition vertexInfoBuffer = new(BufferLayout.Std140, 0, VertexInfoCbBinding, "vb_info", vertexInfoStruct);
+                BufferDefinition vertexInfoBuffer = new(BufferLayout.Std140, 0, vertexInfoCbBinding, "vb_info", vertexInfoStruct);
                 resourceManager.Properties.AddOrUpdateConstantBuffer(vertexInfoBuffer);
             }
 
@@ -565,10 +822,9 @@ namespace Ryujinx.Graphics.Shader.Translation
                 new StructureField(AggregateType.Array | AggregateType.FP32, "data", 0)
             });
 
-            BufferDefinition vertexOutputBuffer = new(BufferLayout.Std430, 1, VertexDataSbBinding, "vb_input", vertexInputStruct);
+            int vertexDataSbBinding = reservations.GetVertexOutputStorageBufferBinding();
+            BufferDefinition vertexOutputBuffer = new(BufferLayout.Std430, 1, vertexDataSbBinding, "vb_input", vertexInputStruct);
             resourceManager.Properties.AddOrUpdateStorageBuffer(vertexOutputBuffer);
-
-            var reservationsForVertexAsCompute = GetResourceReservations();
 
             var context = new EmitterContext();
 
@@ -578,7 +834,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (Stage == ShaderStage.Vertex)
             {
-                Operand vertexCount = context.Load(StorageKind.ConstantBuffer, VertexInfoCbBinding, Const(0), Const(0));
+                Operand vertexCount = context.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(0));
 
                 // Base instance will be always zero when this shader is used, so which one we use here doesn't really matter.
                 Operand instanceId = Options.TargetApi == TargetApi.OpenGL
@@ -588,9 +844,9 @@ namespace Ryujinx.Graphics.Shader.Translation
                 vertexIndex = context.IAdd(context.IMultiply(instanceId, vertexCount), vertexIndex);
             }
 
-            Operand baseOffset = context.IMultiply(vertexIndex, Const(reservationsForVertexAsCompute.OutputSizePerInvocation));
+            Operand baseOffset = context.IMultiply(vertexIndex, Const(reservations.OutputSizePerInvocation));
 
-            foreach ((IoDefinition ioDefinition, int inputOffset) in reservationsForVertexAsCompute.Offsets)
+            foreach ((IoDefinition ioDefinition, int inputOffset) in reservations.Offsets)
             {
                 if (ioDefinition.StorageKind != StorageKind.Output)
                 {
@@ -598,7 +854,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 }
 
                 Operand vertexOffset = inputOffset != 0 ? context.IAdd(baseOffset, Const(inputOffset)) : baseOffset;
-                Operand value = context.Load(StorageKind.StorageBuffer, VertexDataSbBinding, Const(0), vertexOffset);
+                Operand value = context.Load(StorageKind.StorageBuffer, vertexDataSbBinding, Const(0), vertexOffset);
 
                 if (ioDefinition.IoVariable == IoVariable.UserDefined)
                 {
@@ -619,9 +875,21 @@ namespace Ryujinx.Graphics.Shader.Translation
             var cfg = ControlFlowGraph.Create(operations);
             var function = new Function(cfg.Blocks, "main", false, 0, 0);
 
-            var definitions = new ShaderDefinitions(ShaderStage.Vertex);
+            var transformFeedbackOutputs = GetTransformFeedbackOutputs(GpuAccessor, out ulong transformFeedbackVecMap);
 
-            return Generate(new[] { function }, attributeUsage, definitions, definitions, resourceManager, FeatureFlags.None, 0);
+            var definitions = new ShaderDefinitions(ShaderStage.Vertex, transformFeedbackVecMap, transformFeedbackOutputs)
+            {
+                LastInVertexPipeline = true
+            };
+
+            return Generate(
+                new[] { function },
+                attributeUsage,
+                definitions,
+                definitions,
+                resourceManager,
+                FeatureFlags.None,
+                0);
         }
 
         public ShaderProgram GenerateGeometryPassthrough()
@@ -705,7 +973,14 @@ namespace Ryujinx.Graphics.Shader.Translation
                 outputTopology,
                 maxOutputVertices);
 
-            return Generate(new[] { function }, attributeUsage, definitions, definitions, resourceManager, FeatureFlags.RtLayer, 0);
+            return Generate(
+                new[] { function },
+                attributeUsage,
+                definitions,
+                definitions,
+                resourceManager,
+                FeatureFlags.RtLayer,
+                0);
         }
     }
 }

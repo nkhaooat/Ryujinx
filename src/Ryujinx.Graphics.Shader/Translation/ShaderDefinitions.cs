@@ -35,6 +35,7 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int ThreadsPerInputPrimitive { get; private set; }
 
         public InputTopology InputTopology => _graphicsState.Topology;
+        public InputTopologyForVertex InputTopologyForVertex => _graphicsState.TopologyForVertex;
         public OutputTopology OutputTopology { get; }
 
         public int MaxOutputVertices { get; }
@@ -95,9 +96,14 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private readonly Dictionary<TransformFeedbackVariable, TransformFeedbackOutput> _transformFeedbackDefinitions;
 
-        public ShaderDefinitions(ShaderStage stage)
+        public ShaderDefinitions(ShaderStage stage, ulong transformFeedkbackVecMap, TransformFeedbackOutput[] transformFeedbackOutputs)
         {
             Stage = stage;
+            TransformFeedbackEnabled = transformFeedbackOutputs != null;
+            _transformFeedbackOutputs = transformFeedbackOutputs;
+            _transformFeedbackDefinitions = new();
+
+            PopulateTransformFeedbackDefinitions(transformFeedkbackVecMap, transformFeedbackOutputs);
         }
 
         public ShaderDefinitions(
@@ -139,7 +145,6 @@ namespace Ryujinx.Graphics.Shader.Translation
             int omapTargets,
             bool omapSampleMask,
             bool omapDepth,
-            bool transformFeedbackEnabled,
             ulong transformFeedbackVecMap,
             TransformFeedbackOutput[] transformFeedbackOutputs)
         {
@@ -154,10 +159,15 @@ namespace Ryujinx.Graphics.Shader.Translation
             OmapSampleMask = omapSampleMask;
             OmapDepth = omapDepth;
             LastInVertexPipeline = stage < ShaderStage.Fragment;
-            TransformFeedbackEnabled = transformFeedbackEnabled;
+            TransformFeedbackEnabled = transformFeedbackOutputs != null;
             _transformFeedbackOutputs = transformFeedbackOutputs;
             _transformFeedbackDefinitions = new();
 
+            PopulateTransformFeedbackDefinitions(transformFeedbackVecMap, transformFeedbackOutputs);
+        }
+
+        private void PopulateTransformFeedbackDefinitions(ulong transformFeedbackVecMap, TransformFeedbackOutput[] transformFeedbackOutputs)
+        {
             while (transformFeedbackVecMap != 0)
             {
                 int vecIndex = BitOperations.TrailingZeroCount(transformFeedbackVecMap);
@@ -194,16 +204,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         public void EnableOutputIndexing()
         {
             OaIndexing = true;
-        }
-
-        public TransformFeedbackOutput[] GetTransformFeedbackOutputs()
-        {
-            if (!HasTransformFeedbackOutputs())
-            {
-                return null;
-            }
-
-            return _transformFeedbackOutputs;
         }
 
         public bool TryGetTransformFeedbackOutput(IoVariable ioVariable, int location, int component, out TransformFeedbackOutput transformFeedbackOutput)

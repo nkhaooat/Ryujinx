@@ -133,6 +133,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             return new GpuGraphicsState(
                 EarlyZForce,
                 ConvertToInputTopology(Topology, TessellationMode),
+                ConvertToInputTopology(Topology),
                 TessellationMode.UnpackCw(),
                 TessellationMode.UnpackPatchType(),
                 TessellationMode.UnpackSpacing(),
@@ -177,6 +178,31 @@ namespace Ryujinx.Graphics.Gpu.Shader
                     ? InputTopology.Lines
                     : InputTopology.Triangles,
                 _ => InputTopology.Points,
+            };
+        }
+
+        /// <summary>
+        /// Converts the Maxwell primitive topology to the shader translator vertex topology.
+        /// </summary>
+        /// <param name="topology">Maxwell primitive topology</param>
+        /// <returns>Shader translator vertex topology</returns>
+        private static InputTopologyForVertex ConvertToInputTopology(PrimitiveTopology topology)
+        {
+            return topology switch
+            {
+                PrimitiveTopology.Points => InputTopologyForVertex.Points,
+                PrimitiveTopology.Lines => InputTopologyForVertex.Lines,
+                PrimitiveTopology.LineLoop => InputTopologyForVertex.LineLoop,
+                PrimitiveTopology.LineStrip => InputTopologyForVertex.LineStrip,
+                PrimitiveTopology.LinesAdjacency => InputTopologyForVertex.LinesAdjacency,
+                PrimitiveTopology.LineStripAdjacency => InputTopologyForVertex.LineStripAdjacency,
+                PrimitiveTopology.Triangles => InputTopologyForVertex.Triangles,
+                PrimitiveTopology.TriangleStrip => InputTopologyForVertex.TriangleStrip,
+                PrimitiveTopology.TriangleFan => InputTopologyForVertex.TriangleFan,
+                PrimitiveTopology.TrianglesAdjacency => InputTopologyForVertex.TrianglesAdjacency,
+                PrimitiveTopology.TriangleStripAdjacency => InputTopologyForVertex.TriangleStripAdjacency,
+                PrimitiveTopology.Patches => InputTopologyForVertex.Patches,
+                _ => InputTopologyForVertex.Points
             };
         }
     }

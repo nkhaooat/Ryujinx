@@ -123,6 +123,50 @@ namespace Ryujinx.Graphics.Shader.Instructions
             }
         }
 
+        public static bool TryGetIoDefinition(ShaderStage stage, int offset, out IoVariable ioVariable, out int location, out int component)
+        {
+            if (!_attributes.TryGetValue(offset, out AttributeEntry entry))
+            {
+                ioVariable = default;
+                location = 0;
+                component = 0;
+                return false;
+            }
+
+            int innerOffset = offset - entry.BaseOffset;
+            int innerIndex = innerOffset / 4;
+
+            ioVariable = GetIoVariable(stage, in entry);
+            AggregateType type = entry.Type;
+            int elementCount = GetElementCount(type);
+
+            bool isArray = type.HasFlag(AggregateType.Array);
+            bool hasArrayIndex = isArray || ioVariable == IoVariable.UserDefined;
+
+            bool hasElementIndex = elementCount > 1;
+
+            if (hasArrayIndex && hasElementIndex)
+            {
+                int arrayIndex = innerIndex / elementCount;
+                int elementIndex = innerIndex - (arrayIndex * elementCount);
+
+                location = arrayIndex;
+                component = elementIndex;
+            }
+            else if (hasArrayIndex || hasElementIndex)
+            {
+                location = 0;
+                component = innerIndex;
+            }
+            else
+            {
+                location = 0;
+                component = 0;
+            }
+
+            return true;
+        }
+
         public static Operand GenerateAttributeLoad(EmitterContext context, Operand primVertex, int offset, bool isOutput, bool isPerPatch)
         {
             if (!(isPerPatch ? _attributesPerPatch : _attributes).TryGetValue(offset, out AttributeEntry entry))

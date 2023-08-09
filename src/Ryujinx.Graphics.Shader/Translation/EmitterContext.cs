@@ -238,7 +238,9 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         public void PrepareForVertexReturn()
         {
-            if (!TranslatorContext.GpuAccessor.QueryHostSupportsTransformFeedback() && TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled())
+            if (!TranslatorContext.GpuAccessor.QueryHostSupportsTransformFeedback() &&
+                TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled() &&
+                !TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
             {
                 int tfeInfoBinding = ResourceManager.Reservations.GetTfeInfoStorageBufferBinding();
 

@@ -21,6 +21,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
         private readonly ThreedClass _engine;
         private readonly ShaderAsCompute _vertexAsCompute;
         private readonly ShaderAsCompute _geometryAsCompute;
+        private readonly ShaderAsCompute _feedbackAsCompute;
         private readonly IProgram _vertexPassthroughProgram;
         private readonly PrimitiveTopology _topology;
         private readonly int _count;
@@ -46,6 +47,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             ThreedClass engine,
             ShaderAsCompute vertexAsCompute,
             ShaderAsCompute geometryAsCompute,
+            ShaderAsCompute feedbackAsCompute,
             IProgram vertexPassthroughProgram,
             PrimitiveTopology topology,
             int count,
@@ -62,6 +64,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             _engine = engine;
             _vertexAsCompute = vertexAsCompute;
             _geometryAsCompute = geometryAsCompute;
+            _feedbackAsCompute = feedbackAsCompute;
             _vertexPassthroughProgram = vertexPassthroughProgram;
             _topology = topology;
             _count = count;
@@ -214,7 +217,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             _context.Renderer.Pipeline.SetUniformBuffers(stackalloc[] { new BufferAssignment(vertexInfoBinding, vertexInfoRange) });
 
             int vertexDataBinding = _vertexAsCompute.Reservations.GetVertexOutputStorageBufferBinding();
-            int vertexDataSize = _vertexAsCompute.Reservations.OutputSizeInBytesPerInvocation * _count * _instanceCount;
 
             // Wait until compute is done.
             // TODO: Batch compute and draw operations to avoid pipeline stalls.
@@ -249,6 +251,17 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
             _context.Renderer.Pipeline.Barrier();
 
+            if (_feedbackAsCompute != null)
+            {
+                RunFeedback();
+            }
+
+            if (!_state.State.RasterizeEnable && !_context.Capabilities.SupportsTransformFeedback)
+            {
+                // No need to run fragment if rasterizer discard is enabled, and we are emulating transform feedback.
+                return;
+            }
+
             if (_geometryAsCompute != null)
             {
                 BufferRange vertexBuffer = _vacContext.GetGeometryVertexDataBufferRange(_geometryVertexDataOffset, _geometryVertexDataSize);
@@ -259,12 +272,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 _context.Renderer.Pipeline.SetStorageBuffers(stackalloc[] { new BufferAssignment(vertexDataBinding, vertexBuffer) });
 
                 _context.Renderer.Pipeline.SetPrimitiveRestart(true, -1);
-                _context.Renderer.Pipeline.SetPrimitiveTopology(_geometryAsCompute.Info.GeometryVerticesPerPrimitive switch
-                {
-                    3 => PrimitiveTopology.TriangleStrip,
-                    2 => PrimitiveTopology.LineStrip,
-                    _ => PrimitiveTopology.Points,
-                });
+                _context.Renderer.Pipeline.SetPrimitiveTopology(GetGeometryOutputTopology(_geometryAsCompute.Info.GeometryVerticesPerPrimitive));
 
                 _context.Renderer.Pipeline.DrawIndexed(_geometryIndexDataCount, 1, 0, 0, 0);
 
@@ -279,6 +287,74 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 _context.Renderer.Pipeline.SetStorageBuffers(stackalloc[] { new BufferAssignment(vertexDataBinding, vertexDataRange) });
                 _context.Renderer.Pipeline.Draw(_count, _instanceCount, 0, 0);
             }
+        }
+
+        private readonly void RunFeedback()
+        {
+            Span<int> vertexInfo = stackalloc int[8];
+
+            int primitivesCount = VtgAsComputeContext.GetPrimitivesCount(_topology, _count);
+
+            _context.Renderer.Pipeline.SetProgram(_feedbackAsCompute.HostProgram);
+
+            int vertexDataBinding = _feedbackAsCompute.Reservations.GetVertexOutputStorageBufferBinding();
+            PrimitiveTopology remapTopology;
+            int remapCount;
+
+            if (_geometryAsCompute != null)
+            {
+                BufferRange vertexBuffer = _vacContext.GetGeometryVertexDataBufferRange(_geometryVertexDataOffset, _geometryVertexDataSize);
+                BufferRange indexBuffer = _vacContext.GetGeometryIndexDataBufferRange(_geometryIndexDataOffset, _geometryIndexDataSize);
+
+                _context.Renderer.Pipeline.SetStorageBuffers(stackalloc[] { new BufferAssignment(vertexDataBinding, vertexBuffer) });
+
+                vertexInfo[5] = _geometryIndexDataCount;
+                vertexInfo[6] = -1;
+
+                remapTopology = GetGeometryOutputTopology(_geometryAsCompute.Info.GeometryVerticesPerPrimitive);
+                remapCount = _geometryAsCompute.Info.GeometryMaxOutputVertices;
+
+                SetIndexBufferTexture(_vertexAsCompute.Reservations, indexBuffer, Format.R32Uint);
+            }
+            else
+            {
+                BufferRange vertexDataRange = _vacContext.GetVertexDataBufferRange(_vertexDataOffset, _vertexDataSize);
+
+                _context.Renderer.Pipeline.SetStorageBuffers(stackalloc[] { new BufferAssignment(vertexDataBinding, vertexDataRange) });
+
+                vertexInfo[5] = _count;
+                vertexInfo[6] = _state.State.PrimitiveRestartState.Enable ? _state.State.PrimitiveRestartState.Index : -1;
+
+                remapTopology = _topology;
+                remapCount = _count;
+
+                if (_indexed)
+                {
+                    SetIndexBufferTexture(_vertexAsCompute.Reservations, _firstIndex, _count, ref vertexInfo[7]);
+                }
+                else
+                {
+                    SetSequentialIndexBufferTexture(_vertexAsCompute.Reservations, _count);
+                }
+            }
+
+            SetTopologyRemapBufferTexture(_feedbackAsCompute.Reservations, remapTopology, remapCount);
+
+            int vertexInfoBinding = _feedbackAsCompute.Reservations.GetVertexInfoConstantBufferBinding();
+            BufferRange vertexInfoRange = new(_vacContext.PushVertexInfo(vertexInfo), 0, vertexInfo.Length * sizeof(int));
+            _context.Renderer.Pipeline.SetUniformBuffers(stackalloc[] { new BufferAssignment(vertexInfoBinding, vertexInfoRange) });
+
+            _context.Renderer.Pipeline.DispatchCompute(_geometryAsCompute != null ? 1 : _instanceCount, 1, 1);
+        }
+
+        private static PrimitiveTopology GetGeometryOutputTopology(int verticesPerPrimitive)
+        {
+            return verticesPerPrimitive switch
+            {
+                3 => PrimitiveTopology.TriangleStrip,
+                2 => PrimitiveTopology.LineStrip,
+                _ => PrimitiveTopology.Points,
+            };
         }
 
         private static int GetMaxCompleteStrips(int verticesPerPrimitive, int maxOutputVertices)
@@ -338,6 +414,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             BufferRange range = memoryManager.Physical.BufferCache.GetBufferRange(address - misalign, size + misalign);
             misalignedOffset = (int)misalign >> shift;
 
+            SetIndexBufferTexture(reservations, range, format);
+        }
+
+        private readonly void SetIndexBufferTexture(ResourceReservations reservations, BufferRange range, Format format)
+        {
             ITexture bufferTexture = _vacContext.EnsureBufferTexutre(0, format);
             bufferTexture.SetStorage(range);
 
