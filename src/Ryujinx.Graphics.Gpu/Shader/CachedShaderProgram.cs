@@ -25,6 +25,11 @@ namespace Ryujinx.Graphics.Gpu.Shader
         public ShaderAsCompute GeometryAsCompute { get; }
 
         /// <summary>
+        /// Optional transform feedback emulation compute shader.
+        /// </summary>
+        public ShaderAsCompute FeedbackAsCompute { get; }
+
+        /// <summary>
         /// GPU state used to create this version of the shader.
         /// </summary>
         public ShaderSpecializationState SpecializationState { get; }
@@ -59,11 +64,13 @@ namespace Ryujinx.Graphics.Gpu.Shader
             IProgram hostProgram,
             ShaderAsCompute vertexAsCompute,
             ShaderAsCompute geometryAsCompute,
+            ShaderAsCompute feedbackAsCompute,
             ShaderSpecializationState specializationState,
             CachedShaderStage[] shaders) : this(hostProgram, specializationState, shaders)
         {
             VertexAsCompute = vertexAsCompute;
             GeometryAsCompute = geometryAsCompute;
+            FeedbackAsCompute = feedbackAsCompute;
         }
 
         /// <summary>
@@ -74,6 +81,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             HostProgram.Dispose();
             VertexAsCompute?.HostProgram.Dispose();
             GeometryAsCompute?.HostProgram.Dispose();
+            FeedbackAsCompute?.HostProgram.Dispose();
         }
     }
 }

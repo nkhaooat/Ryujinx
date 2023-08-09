@@ -307,11 +307,12 @@ namespace Ryujinx.Graphics.Gpu.Shader
         /// </summary>
         /// <param name="context">GPU context that owns the shader</param>
         /// <param name="info">Compute shader information</param>
+        /// <param name="tfEnabled">Indicates if the graphics shader is used with transform feedback enabled</param>
         /// <param name="fromCache">True if the compute shader comes from a disk cache, false otherwise</param>
         /// <returns>Shader information</returns>
-        public static ShaderInfo BuildForVertexAsCompute(GpuContext context, ShaderProgramInfo info, bool fromCache = false)
+        public static ShaderInfo BuildForVertexAsCompute(GpuContext context, ShaderProgramInfo info, bool tfEnabled, bool fromCache = false)
         {
-            ShaderInfoBuilder builder = new(context, tfEnabled: false, vertexAsCompute: true);
+            ShaderInfoBuilder builder = new(context, tfEnabled, vertexAsCompute: true);
 
             builder.AddStageInfo(info, vertexAsCompute: true);
 

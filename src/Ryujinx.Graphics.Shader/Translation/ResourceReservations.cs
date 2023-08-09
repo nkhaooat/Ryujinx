@@ -201,6 +201,11 @@ namespace Ryujinx.Graphics.Shader.Translation
             return _offsets.TryGetValue(new IoDefinition(storageKind, IoVariable.UserDefined, location, component), out offset);
         }
 
+        internal bool TryGetOffset(StorageKind storageKind, IoVariable ioVariable, int location, int component, out int offset)
+        {
+            return _offsets.TryGetValue(new IoDefinition(storageKind, ioVariable, location, component), out offset);
+        }
+
         internal bool TryGetOffset(StorageKind storageKind, IoVariable ioVariable, int component, out int offset)
         {
             return _offsets.TryGetValue(new IoDefinition(storageKind, ioVariable, 0, component), out offset);

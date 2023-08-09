@@ -78,11 +78,30 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         private static ShaderDefinitions CreateGraphicsDefinitions(IGpuAccessor gpuAccessor, ShaderHeader header)
         {
+            TransformFeedbackOutput[] transformFeedbackOutputs = GetTransformFeedbackOutputs(gpuAccessor, out ulong transformFeedbackVecMap);
+
+            return new ShaderDefinitions(
+                header.Stage,
+                gpuAccessor.QueryGraphicsState(),
+                header.Stage == ShaderStage.Geometry && header.GpPassthrough,
+                header.ThreadsPerInputPrimitive,
+                header.OutputTopology,
+                header.MaxOutputVertexCount,
+                header.ImapTypes,
+                header.OmapTargets,
+                header.OmapSampleMask,
+                header.OmapDepth,
+                transformFeedbackVecMap,
+                transformFeedbackOutputs);
+        }
+
+        internal static TransformFeedbackOutput[] GetTransformFeedbackOutputs(IGpuAccessor gpuAccessor, out ulong transformFeedbackVecMap)
+        {
             bool transformFeedbackEnabled =
                 gpuAccessor.QueryTransformFeedbackEnabled() &&
                 gpuAccessor.QueryHostSupportsTransformFeedback();
             TransformFeedbackOutput[] transformFeedbackOutputs = null;
-            ulong transformFeedbackVecMap = 0UL;
+            transformFeedbackVecMap = 0UL;
 
             if (transformFeedbackEnabled)
             {
@@ -105,20 +124,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 }
             }
 
-            return new ShaderDefinitions(
-                header.Stage,
-                gpuAccessor.QueryGraphicsState(),
-                header.Stage == ShaderStage.Geometry && header.GpPassthrough,
-                header.ThreadsPerInputPrimitive,
-                header.OutputTopology,
-                header.MaxOutputVertexCount,
-                header.ImapTypes,
-                header.OmapTargets,
-                header.OmapSampleMask,
-                header.OmapDepth,
-                transformFeedbackEnabled,
-                transformFeedbackVecMap,
-                transformFeedbackOutputs);
+            return transformFeedbackOutputs;
         }
 
         private static int GetLocalMemorySize(ShaderHeader header)

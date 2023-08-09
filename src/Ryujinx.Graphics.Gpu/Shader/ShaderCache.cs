@@ -372,6 +372,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             ShaderAsCompute vertexAsCompute = null;
             ShaderAsCompute geometryAsCompute = null;
+            ShaderAsCompute feedbackAsCompute = null;
 
             for (int stageIndex = 0; stageIndex < Constants.ShaderStages; stageIndex++)
             {
@@ -411,22 +412,25 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
                     if (asCompute)
                     {
+                        bool tfEnabled = transformFeedbackDescriptors != null;
+
                         if (stageIndex == 0)
                         {
-                            vertexAsCompute = CreateHostVertexAsComputeProgram(program, currentStage);
+                            vertexAsCompute = CreateHostVertexAsComputeProgram(program, currentStage, tfEnabled);
 
-                            if (geometryToCompute && translatorContexts[4] != null)
+                            TranslatorContext lastInVertexPipeline = geometryToCompute ? translatorContexts[4] ?? currentStage : currentStage;
+
+                            program = lastInVertexPipeline.GenerateVertexPassthroughForCompute();
+
+                            // TODO: Only do this if the last stage in the vertex pipeline has been converted to compute.
+                            if (!_context.Capabilities.SupportsTransformFeedback && tfEnabled)
                             {
-                                program = translatorContexts[4].GenerateVertexPassthroughForCompute();
-                            }
-                            else
-                            {
-                                program = currentStage.GenerateVertexPassthroughForCompute();
+                                feedbackAsCompute = CreateHostVertexAsComputeProgram(lastInVertexPipeline.GenerateFeedbackForCompute(), lastInVertexPipeline, true);
                             }
                         }
                         else
                         {
-                            geometryAsCompute = CreateHostVertexAsComputeProgram(program, currentStage);
+                            geometryAsCompute = CreateHostVertexAsComputeProgram(program, currentStage, tfEnabled);
                             program = null;
                         }
                     }
@@ -455,7 +459,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
             IProgram hostProgram = _context.Renderer.CreateProgram(shaderSourcesArray, info);
 
-            gpShaders = new CachedShaderProgram(hostProgram, vertexAsCompute, geometryAsCompute, specState, shaders);
+            gpShaders = new(hostProgram, vertexAsCompute, geometryAsCompute, feedbackAsCompute, specState, shaders);
 
             _graphicsShaderCache.Add(gpShaders);
             EnqueueProgramToSave(gpShaders, hostProgram, shaderSourcesArray);
@@ -466,6 +470,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
         private bool ShouldConvertVertexToCompute(bool hasGeometryShader)
         {
+            return true;
             // TODO: Implement this, set to true for testing for now.
 
             // If any stage after the vertex stage is converted to compute,
@@ -479,10 +484,10 @@ namespace Ryujinx.Graphics.Gpu.Shader
             return true;
         }
 
-        private ShaderAsCompute CreateHostVertexAsComputeProgram(ShaderProgram program, TranslatorContext context)
+        private ShaderAsCompute CreateHostVertexAsComputeProgram(ShaderProgram program, TranslatorContext context, bool tfEnabled)
         {
             ShaderSource source = new(program.Code, program.BinaryCode, ShaderStage.Compute, program.Language);
-            ShaderInfo info = ShaderInfoBuilder.BuildForVertexAsCompute(_context, program.Info);
+            ShaderInfo info = ShaderInfoBuilder.BuildForVertexAsCompute(_context, program.Info, tfEnabled);
 
             return new(_context.Renderer.CreateProgram(new[] { source }, info), program.Info, context.GetResourceReservations());
         }

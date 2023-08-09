@@ -74,6 +74,11 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         public ShaderAsCompute GeometryAsCompute;
 
         /// <summary>
+        /// If transform feedback is not supported on the host, and VTG is emulated on compute, should be set to a transform feedback compute shader, otherwise it should be null.
+        /// </summary>
+        public ShaderAsCompute FeedbackAsCompute;
+
+        /// <summary>
         /// If the vertex shader is emulated on compute, this should be set to the passthrough vertex program, otherwise it should be null.
         /// </summary>
         public IProgram VertexPassthrough;
