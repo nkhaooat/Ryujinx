@@ -470,7 +470,6 @@ namespace Ryujinx.Graphics.Gpu.Shader
 
         private bool ShouldConvertVertexToCompute(bool hasGeometryShader)
         {
-            return true;
             // TODO: Implement this, set to true for testing for now.
 
             // If any stage after the vertex stage is converted to compute,
