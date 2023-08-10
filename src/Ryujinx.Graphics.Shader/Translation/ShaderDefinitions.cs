@@ -153,7 +153,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             GpPassthrough = gpPassthrough;
             ThreadsPerInputPrimitive = threadsPerInputPrimitive;
             OutputTopology = outputTopology;
-            MaxOutputVertices = maxOutputVertices;
+            MaxOutputVertices = gpPassthrough ? graphicsState.Topology.ToInputVerticesNoAdjacency() : maxOutputVertices;
             ImapTypes = imapTypes;
             OmapTargets = omapTargets;
             OmapSampleMask = omapSampleMask;
