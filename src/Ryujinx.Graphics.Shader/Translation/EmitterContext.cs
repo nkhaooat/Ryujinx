@@ -239,8 +239,7 @@ namespace Ryujinx.Graphics.Shader.Translation
         public void PrepareForVertexReturn()
         {
             if (!TranslatorContext.GpuAccessor.QueryHostSupportsTransformFeedback() &&
-                TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled() &&
-                !TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
+                TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled())
             {
                 Operand vertexCount = this.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeVertexCount));
 
