@@ -10,8 +10,6 @@ namespace Ryujinx.Graphics.Shader
         public ReadOnlyCollection<TextureDescriptor> Textures { get; }
         public ReadOnlyCollection<TextureDescriptor> Images { get; }
 
-        public ShaderIdentification Identification { get; }
-        public int GpLayerInputAttribute { get; }
         public ShaderStage Stage { get; }
         public int GeometryVerticesPerPrimitive { get; }
         public int GeometryMaxOutputVertices { get; }
@@ -28,8 +26,6 @@ namespace Ryujinx.Graphics.Shader
             BufferDescriptor[] sBuffers,
             TextureDescriptor[] textures,
             TextureDescriptor[] images,
-            ShaderIdentification identification,
-            int gpLayerInputAttribute,
             ShaderStage stage,
             int geometryVerticesPerPrimitive,
             int geometryMaxOutputVertices,
@@ -46,8 +42,6 @@ namespace Ryujinx.Graphics.Shader
             Textures = Array.AsReadOnly(textures);
             Images = Array.AsReadOnly(images);
 
-            Identification = identification;
-            GpLayerInputAttribute = gpLayerInputAttribute;
             Stage = stage;
             GeometryVerticesPerPrimitive = geometryVerticesPerPrimitive;
             GeometryMaxOutputVertices = geometryMaxOutputVertices;
