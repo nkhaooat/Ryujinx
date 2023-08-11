@@ -22,6 +22,9 @@ namespace Ryujinx.Graphics.Shader
         ViewportSize,
         FragmentRenderScaleCount,
         RenderScale,
+        TfeOffset,
+        TfeSize,
+        TfeVertexCount,
     }
 
     public struct SupportBuffer
@@ -38,6 +41,9 @@ namespace Ryujinx.Graphics.Shader
         public static readonly int FragmentRenderScaleCountOffset;
         public static readonly int GraphicsRenderScaleOffset;
         public static readonly int ComputeRenderScaleOffset;
+        public static readonly int TfeOffsetOffset;
+        public static readonly int TfeSizeOffset;
+        public static readonly int TfeVertexCountOffset;
 
         public const int FragmentIsBgraCount = 8;
         // One for the render target, 64 for the textures, and 8 for the images.
@@ -62,18 +68,24 @@ namespace Ryujinx.Graphics.Shader
             FragmentRenderScaleCountOffset = OffsetOf(ref instance, ref instance.FragmentRenderScaleCount);
             GraphicsRenderScaleOffset = OffsetOf(ref instance, ref instance.RenderScale);
             ComputeRenderScaleOffset = GraphicsRenderScaleOffset + FieldSize;
+            TfeOffsetOffset = OffsetOf(ref instance, ref instance.TfeOffset);
+            TfeSizeOffset = OffsetOf(ref instance, ref instance.TfeSize);
+            TfeVertexCountOffset = OffsetOf(ref instance, ref instance.TfeVertexCount);
         }
 
         internal static StructureType GetStructureType()
         {
             return new StructureType(new[]
             {
-                new StructureField(AggregateType.U32, "s_alpha_test"),
-                new StructureField(AggregateType.Array | AggregateType.U32, "s_is_bgra", FragmentIsBgraCount),
-                new StructureField(AggregateType.Vector4 | AggregateType.FP32, "s_viewport_inverse"),
-                new StructureField(AggregateType.Vector4 | AggregateType.FP32, "s_viewport_size"),
-                new StructureField(AggregateType.S32, "s_frag_scale_count"),
-                new StructureField(AggregateType.Array | AggregateType.FP32, "s_render_scale", RenderScaleMaxCount),
+                new StructureField(AggregateType.U32, "alpha_test"),
+                new StructureField(AggregateType.Array | AggregateType.U32, "is_bgra", FragmentIsBgraCount),
+                new StructureField(AggregateType.Vector4 | AggregateType.FP32, "viewport_inverse"),
+                new StructureField(AggregateType.Vector4 | AggregateType.FP32, "viewport_size"),
+                new StructureField(AggregateType.S32, "frag_scale_count"),
+                new StructureField(AggregateType.Array | AggregateType.FP32, "render_scale", RenderScaleMaxCount),
+                new StructureField(AggregateType.Vector4 | AggregateType.S32, "tfe_offset"),
+                new StructureField(AggregateType.Vector4 | AggregateType.S32, "tfe_size"),
+                new StructureField(AggregateType.S32, "tfe_vertex_count"),
             });
         }
 
@@ -85,5 +97,9 @@ namespace Ryujinx.Graphics.Shader
 
         // Render scale max count: 1 + 64 + 8. First scale is fragment output scale, others are textures/image inputs.
         public Array73<Vector4<float>> RenderScale;
+
+        public Vector4<int> TfeOffset;
+        public Vector4<int> TfeSize;
+        public Vector4<int> TfeVertexCount;
     }
 }

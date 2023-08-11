@@ -21,8 +21,8 @@ namespace Ryujinx.Graphics.Shader
 
             if (isTransformFeedbackEmulated)
             {
-                // Transform feedback emulation currently always uses 5 storage buffers.
-                ReservedStorageBuffers = 1 + TfeBuffersCount;
+                // Transform feedback emulation currently always uses 4 storage buffers.
+                ReservedStorageBuffers = TfeBuffersCount;
             }
 
             if (vertexAsCompute)
