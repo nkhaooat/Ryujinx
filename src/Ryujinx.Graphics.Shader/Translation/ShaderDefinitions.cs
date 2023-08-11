@@ -341,12 +341,5 @@ namespace Ryujinx.Graphics.Shader.Translation
         {
             return GetGeometryOutputIndexBufferStridePerInstance() * ThreadsPerInputPrimitive;
         }
-
-        public ShaderDefinitions AsCompute(int computeLocalSizeX, int computeLocalSizeY, int computeLocalSizeZ)
-        {
-            ShaderDefinitions definitions = new(ShaderStage.Compute, computeLocalSizeX, computeLocalSizeY, computeLocalSizeZ);
-
-            return definitions;
-        }
     }
 }
