@@ -327,8 +327,8 @@ namespace Ryujinx.Graphics.Gpu.Shader
             TargetApi api = _context.Capabilities.Api;
 
             bool hasGeometryShader = addresses.Geometry != 0;
-            bool vertexToCompute = ShouldConvertVertexToCompute(hasGeometryShader);
-            bool geometryToCompute = ShouldConvertGeometryToCompute();
+            bool vertexToCompute = ShouldConvertVertexToCompute(_context, hasGeometryShader);
+            bool geometryToCompute = ShouldConvertGeometryToCompute(_context);
 
             for (int stageIndex = Constants.ShaderStages - 1; stageIndex >= 0; stageIndex--)
             {
@@ -462,25 +462,28 @@ namespace Ryujinx.Graphics.Gpu.Shader
             gpShaders = new(hostProgram, vertexAsCompute, geometryAsCompute, feedbackAsCompute, specState, shaders);
 
             _graphicsShaderCache.Add(gpShaders);
-            EnqueueProgramToSave(gpShaders, hostProgram, shaderSourcesArray);
+
+            // We don't currently support caching shaders that have been converted to compute.
+            if (vertexAsCompute == null)
+            {
+                EnqueueProgramToSave(gpShaders, hostProgram, shaderSourcesArray);
+            }
+
             _gpPrograms[addresses] = gpShaders;
 
             return gpShaders;
         }
 
-        private bool ShouldConvertVertexToCompute(bool hasGeometryShader)
+        public static bool ShouldConvertVertexToCompute(GpuContext context, bool hasGeometryShader)
         {
-            // TODO: Implement this, set to true for testing for now.
-
             // If any stage after the vertex stage is converted to compute,
             // we need to convert vertex to compute too.
-            return hasGeometryShader && ShouldConvertGeometryToCompute();
+            return hasGeometryShader && ShouldConvertGeometryToCompute(context);
         }
 
-        private bool ShouldConvertGeometryToCompute()
+        public static bool ShouldConvertGeometryToCompute(GpuContext context)
         {
-            // TODO: Implement this, set to true for testing for now.
-            return true;
+            return !context.Capabilities.SupportsGeometryShader;
         }
 
         private ShaderAsCompute CreateHostVertexAsComputeProgram(ShaderProgram program, TranslatorContext context, bool tfEnabled)
