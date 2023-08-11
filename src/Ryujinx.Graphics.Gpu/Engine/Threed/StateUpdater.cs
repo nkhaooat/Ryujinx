@@ -1445,14 +1445,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             {
                 _drawState.VertexAsCompute = gs.VertexAsCompute;
                 _drawState.GeometryAsCompute = gs.GeometryAsCompute;
-                _drawState.FeedbackAsCompute = gs.FeedbackAsCompute;
                 _drawState.VertexPassthrough = gs.HostProgram;
             }
             else
             {
                 _drawState.VertexAsCompute = null;
                 _drawState.GeometryAsCompute = null;
-                _drawState.FeedbackAsCompute = null;
                 _drawState.VertexPassthrough = null;
             }
 

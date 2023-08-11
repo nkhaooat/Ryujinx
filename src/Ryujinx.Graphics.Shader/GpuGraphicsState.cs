@@ -18,11 +18,6 @@ namespace Ryujinx.Graphics.Shader
         public readonly InputTopology Topology;
 
         /// <summary>
-        /// Primitive topology for vertex shader as compute transform feedback emulation.
-        /// </summary>
-        public readonly InputTopologyForVertex TopologyForVertex;
-
-        /// <summary>
         /// Tessellation winding order.
         /// </summary>
         public readonly bool TessCw;
@@ -112,7 +107,6 @@ namespace Ryujinx.Graphics.Shader
         /// </summary>
         /// <param name="earlyZForce">Early Z force enable</param>
         /// <param name="topology">Primitive topology</param>
-        /// <param name="topology">Primitive topology for vertex shader as compute transform feedback emulation</param>
         /// <param name="tessCw">Tessellation winding order (clockwise or counter-clockwise)</param>
         /// <param name="tessPatchType">Tessellation patch type</param>
         /// <param name="tessSpacing">Tessellation spacing</param>
@@ -133,7 +127,6 @@ namespace Ryujinx.Graphics.Shader
         public GpuGraphicsState(
             bool earlyZForce,
             InputTopology topology,
-            InputTopologyForVertex topologyForVertex,
             bool tessCw,
             TessPatchType tessPatchType,
             TessSpacing tessSpacing,
@@ -154,7 +147,6 @@ namespace Ryujinx.Graphics.Shader
         {
             EarlyZForce = earlyZForce;
             Topology = topology;
-            TopologyForVertex = topologyForVertex;
             TessCw = tessCw;
             TessPatchType = tessPatchType;
             TessSpacing = tessSpacing;

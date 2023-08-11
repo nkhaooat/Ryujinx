@@ -593,7 +593,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
                     engine,
                     _drawState.VertexAsCompute,
                     _drawState.GeometryAsCompute,
-                    _drawState.FeedbackAsCompute,
                     _drawState.VertexPassthrough,
                     _drawState.Topology,
                     count,

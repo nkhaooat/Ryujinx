@@ -35,7 +35,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int ThreadsPerInputPrimitive { get; private set; }
 
         public InputTopology InputTopology => _graphicsState.Topology;
-        public InputTopologyForVertex InputTopologyForVertex => _graphicsState.TopologyForVertex;
         public OutputTopology OutputTopology { get; }
 
         public int MaxOutputVertices { get; }
