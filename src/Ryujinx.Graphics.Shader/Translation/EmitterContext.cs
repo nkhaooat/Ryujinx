@@ -303,16 +303,6 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                 this.Store(StorageKind.Output, IoVariable.Position, null, Const(2), this.FPFusedMultiplyAdd(z, ConstF(0.5f), halfW));
             }
-
-            if (TranslatorContext.Definitions.Stage != ShaderStage.Geometry && TranslatorContext.HasLayerInputAttribute)
-            {
-                int attrVecIndex = TranslatorContext.GpLayerInputAttribute >> 2;
-                int attrComponentIndex = TranslatorContext.GpLayerInputAttribute & 3;
-
-                Operand layer = this.Load(StorageKind.Output, IoVariable.UserDefined, null, Const(attrVecIndex), Const(attrComponentIndex));
-
-                this.Store(StorageKind.Output, IoVariable.Layer, null, layer);
-            }
         }
 
         public void PrepareForVertexReturn(out Operand oldXLocal, out Operand oldYLocal, out Operand oldZLocal)

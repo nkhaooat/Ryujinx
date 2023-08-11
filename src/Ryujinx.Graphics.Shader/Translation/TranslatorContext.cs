@@ -25,9 +25,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int Size { get; }
         public int Cb1DataSize => _program.Cb1DataSize;
 
-        internal bool HasLayerInputAttribute { get; private set; }
-        internal int GpLayerInputAttribute { get; private set; }
-
         internal AttributeUsage AttributeUsage => _program.AttributeUsage;
 
         internal ShaderDefinitions Definitions { get; }
@@ -171,13 +168,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         {
             LayerOutputWritten = true;
             LayerOutputAttribute = attr;
-        }
-
-        public void SetGeometryShaderLayerInputAttribute(int attr)
-        {
-            UsedFeatures |= FeatureFlags.RtLayer;
-            HasLayerInputAttribute = true;
-            GpLayerInputAttribute = attr;
         }
 
         public void SetLastInVertexPipeline()

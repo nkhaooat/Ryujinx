@@ -631,11 +631,6 @@ namespace Ryujinx.Graphics.Gpu.Shader.DiskCache
                 }
             }
 
-            if (!_context.Capabilities.SupportsGeometryShader)
-            {
-                ShaderCache.TryRemoveGeometryStage(translatorContexts);
-            }
-
             // We don't support caching shader stages that have been converted to compute currently,
             // so just eliminate them if they exist in the cache.
             if (ShouldConvertVertexToCompute(_context, translatorContexts[4] != null))
