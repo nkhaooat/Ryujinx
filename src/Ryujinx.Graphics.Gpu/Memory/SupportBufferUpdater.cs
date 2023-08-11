@@ -9,54 +9,19 @@ namespace Ryujinx.Graphics.Gpu.Memory
     /// <summary>
     /// Support buffer data updater.
     /// </summary>
-    class SupportBufferUpdater : IDisposable
+    class SupportBufferUpdater : BufferUpdater
     {
         private SupportBuffer _data;
-        private BufferHandle _handle;
-
-        private readonly IRenderer _renderer;
-        private int _startOffset = -1;
-        private int _endOffset = -1;
 
         /// <summary>
         /// Creates a new instance of the support buffer updater.
         /// </summary>
         /// <param name="renderer">Renderer that the support buffer will be used with</param>
-        public SupportBufferUpdater(IRenderer renderer)
+        public SupportBufferUpdater(IRenderer renderer) : base(renderer)
         {
-            _renderer = renderer;
-
             var defaultScale = new Vector4<float> { X = 1f, Y = 0f, Z = 0f, W = 0f };
             _data.RenderScale.AsSpan().Fill(defaultScale);
             DirtyRenderScale(0, SupportBuffer.RenderScaleMaxCount);
-        }
-
-        /// <summary>
-        /// Mark a region of the support buffer as modified and needing to be sent to the GPU.
-        /// </summary>
-        /// <param name="startOffset">Start offset of the region in bytes</param>
-        /// <param name="byteSize">Size of the region in bytes</param>
-        private void MarkDirty(int startOffset, int byteSize)
-        {
-            int endOffset = startOffset + byteSize;
-
-            if (_startOffset == -1)
-            {
-                _startOffset = startOffset;
-                _endOffset = endOffset;
-            }
-            else
-            {
-                if (startOffset < _startOffset)
-                {
-                    _startOffset = startOffset;
-                }
-
-                if (endOffset > _endOffset)
-                {
-                    _endOffset = endOffset;
-                }
-            }
         }
 
         /// <summary>
@@ -260,63 +225,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
-        /// Gets a reference to a given element of a vector.
-        /// </summary>
-        /// <param name="vector">Vector to get the element reference from</param>
-        /// <param name="elementIndex">Element index</param>
-        /// <returns>Reference to the specified element</returns>
-        private static ref T GetElementRef<T>(ref Vector4<T> vector, int elementIndex)
-        {
-            switch (elementIndex)
-            {
-                case 0:
-                    return ref vector.X;
-                case 1:
-                    return ref vector.Y;
-                case 2:
-                    return ref vector.Z;
-                case 3:
-                    return ref vector.W;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(elementIndex));
-            }
-        }
-
-        /// <summary>
         /// Submits all pending buffer updates to the GPU.
         /// </summary>
         public void Commit()
         {
-            if (_startOffset != -1)
-            {
-                if (_handle == BufferHandle.Null)
-                {
-                    _handle = _renderer.CreateBuffer(SupportBuffer.RequiredSize);
-                    _renderer.Pipeline.ClearBuffer(_handle, 0, SupportBuffer.RequiredSize, 0);
-
-                    var range = new BufferRange(_handle, 0, SupportBuffer.RequiredSize);
-                    _renderer.Pipeline.SetUniformBuffers(stackalloc[] { new BufferAssignment(0, range) });
-                }
-
-                ReadOnlySpan<byte> data = MemoryMarshal.Cast<SupportBuffer, byte>(MemoryMarshal.CreateSpan(ref _data, 1));
-
-                _renderer.SetBufferData(_handle, _startOffset, data[_startOffset.._endOffset]);
-
-                _startOffset = -1;
-                _endOffset = -1;
-            }
-        }
-
-        /// <summary>
-        /// Destroys the support buffer.
-        /// </summary>
-        public void Dispose()
-        {
-            if (_handle != BufferHandle.Null)
-            {
-                _renderer.DeleteBuffer(_handle);
-                _handle = BufferHandle.Null;
-            }
+            Commit(MemoryMarshal.Cast<SupportBuffer, byte>(MemoryMarshal.CreateSpan(ref _data, 1)), SupportBuffer.Binding);
         }
     }
 }

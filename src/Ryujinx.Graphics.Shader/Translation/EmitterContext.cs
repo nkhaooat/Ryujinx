@@ -84,8 +84,10 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
             {
-                int vertexInfoCbBinding = ResourceManager.Reservations.GetVertexInfoConstantBufferBinding();
-                int countFieldIndex = TranslatorContext.Stage == ShaderStage.Vertex ? 0 : 1;
+                int vertexInfoCbBinding = ResourceManager.Reservations.VertexInfoConstantBufferBinding;
+                int countFieldIndex = TranslatorContext.Stage == ShaderStage.Vertex
+                    ? (int)VertexInfoBufferField.VertexCounts
+                    : (int)VertexInfoBufferField.GeometryCounts;
 
                 Operand outputVertexOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
                 Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(countFieldIndex), Const(0));
@@ -98,10 +100,10 @@ namespace Ryujinx.Graphics.Shader.Translation
                 this.MarkLabel(lblVertexInBounds);
 
                 Operand outputInstanceOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
-                Operand instanceCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(1));
-                Operand firstVertex = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(2));
-                Operand firstInstance = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(3));
-                Operand ibBaseOffset = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(1), Const(3));
+                Operand instanceCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(1));
+                Operand firstVertex = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(2));
+                Operand firstInstance = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(3));
+                Operand ibBaseOffset = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.GeometryCounts), Const(3));
                 Operand isInstanceOob = this.ICompareGreaterOrEqualUnsigned(outputInstanceOffset, instanceCount);
 
                 Operand lblInstanceInBounds = Label();
@@ -117,7 +119,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                     this.TextureSample(
                         SamplerType.TextureBuffer,
                         TextureFlags.IntCoords,
-                        ResourceManager.Reservations.GetIndexBufferTextureBinding(),
+                        ResourceManager.Reservations.IndexBufferTextureBinding,
                         1,
                         new[] { vertexIndexVr },
                         new[] { this.IAdd(ibBaseOffset, outputVertexOffset) });
@@ -138,7 +140,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                         this.TextureSample(
                             SamplerType.TextureBuffer,
                             TextureFlags.IntCoords,
-                            ResourceManager.Reservations.GetTopologyRemapBufferTextureBinding(),
+                            ResourceManager.Reservations.TopologyRemapBufferTextureBinding,
                             1,
                             new[] { vertexIndex },
                             new[] { this.IAdd(baseVertex, Const(index)) });
@@ -525,11 +527,11 @@ namespace Ryujinx.Graphics.Shader.Translation
             {
                 if (TranslatorContext.Stage == ShaderStage.Vertex)
                 {
-                    int vertexInfoCbBinding = ResourceManager.Reservations.GetVertexInfoConstantBufferBinding();
-                    int vertexOutputSbBinding = ResourceManager.Reservations.GetVertexOutputStorageBufferBinding();
+                    int vertexInfoCbBinding = ResourceManager.Reservations.VertexInfoConstantBufferBinding;
+                    int vertexOutputSbBinding = ResourceManager.Reservations.VertexOutputStorageBufferBinding;
                     int stride = ResourceManager.Reservations.OutputSizePerInvocation;
 
-                    Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(0));
+                    Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(0));
 
                     Operand outputVertexOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
                     Operand outputInstanceOffset = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
@@ -560,16 +562,18 @@ namespace Ryujinx.Graphics.Shader.Translation
 
                     this.BranchIfTrue(lblExit, this.ICompareGreaterOrEqualUnsigned(writtenIndices, Const(maxIndicesPerPrimitiveInvocation)));
 
+                    int vertexInfoCbBinding = ResourceManager.Reservations.VertexInfoConstantBufferBinding;
+
                     Operand primitiveIndex = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(0));
                     Operand instanceIndex = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(1));
                     Operand invocationId = this.Load(StorageKind.Input, IoVariable.GlobalInvocationId, Const(2));
-                    Operand vertexCount = this.Load(StorageKind.ConstantBuffer, ResourceManager.Reservations.GetVertexInfoConstantBufferBinding(), Const(0), Const(0));
+                    Operand vertexCount = this.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(0));
                     Operand primitiveId = this.IAdd(this.IMultiply(instanceIndex, vertexCount), primitiveIndex);
                     Operand ibOffset = this.IMultiply(primitiveId, Const(maxIndicesPerPrimitive));
                     ibOffset = this.IAdd(ibOffset, this.IMultiply(invocationId, Const(maxIndicesPerPrimitiveInvocation)));
                     ibOffset = this.IAdd(ibOffset, writtenIndices);
 
-                    this.Store(StorageKind.StorageBuffer, ResourceManager.Reservations.GetGeometryIndexOutputStorageBufferBinding(), Const(0), ibOffset, Const(-1));
+                    this.Store(StorageKind.StorageBuffer, ResourceManager.Reservations.GeometryIndexOutputStorageBufferBinding, Const(0), ibOffset, Const(-1));
                     this.Store(StorageKind.LocalMemory, ResourceManager.LocalGeometryOutputIndexCountMemoryId, this.IAdd(writtenIndices, Const(1)));
 
                     this.Branch(lblLoopHead);

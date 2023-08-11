@@ -11,6 +11,13 @@ namespace Ryujinx.Graphics.Shader.Translation
 
         public const int MaxVertexBufferTextures = 32;
 
+        public int VertexInfoConstantBufferBinding { get; }
+        public int VertexOutputStorageBufferBinding { get; }
+        public int GeometryVertexOutputStorageBufferBinding { get; }
+        public int GeometryIndexOutputStorageBufferBinding { get; }
+        public int IndexBufferTextureBinding { get; }
+        public int TopologyRemapBufferTextureBinding { get; }
+
         public int ReservedConstantBuffers { get; }
         public int ReservedStorageBuffers { get; }
         public int ReservedTextures { get; }
@@ -20,23 +27,12 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int OutputSizeInBytesPerInvocation => OutputSizePerInvocation * sizeof(uint);
 
         private readonly int _tfeBufferSbBaseBinding;
-        private readonly int _vertexInfoCbBinding;
-        private readonly int _vertexOutputSbBinding;
-        private readonly int _geometryVbOutputSbBinding;
-        private readonly int _geometryIbOutputSbBinding;
-        private readonly int _indexBufferTextureBinding;
-        private readonly int _topologyRemapBufferTextureBinding;
         private readonly int _vertexBufferTextureBaseBinding;
 
         private readonly Dictionary<IoDefinition, int> _offsets;
         internal IReadOnlyDictionary<IoDefinition, int> Offsets => _offsets;
 
-        internal ResourceReservations(
-            IGpuAccessor gpuAccessor,
-            bool isTransformFeedbackEmulated,
-            bool vertexAsCompute,
-            IoUsage? vacInput,
-            IoUsage vacOutput)
+        internal ResourceReservations(bool isTransformFeedbackEmulated, bool vertexAsCompute)
         {
             // All stages reserves the first constant buffer binding for the support buffer.
             ReservedConstantBuffers = 1;
@@ -54,24 +50,32 @@ namespace Ryujinx.Graphics.Shader.Translation
             if (vertexAsCompute)
             {
                 // One constant buffer reserved for vertex related state.
-                _vertexInfoCbBinding = ReservedConstantBuffers++;
+                VertexInfoConstantBufferBinding = ReservedConstantBuffers++;
 
                 // One storage buffer for the output vertex data.
-                _vertexOutputSbBinding = ReservedStorageBuffers++;
+                VertexOutputStorageBufferBinding = ReservedStorageBuffers++;
 
                 // One storage buffer for the output geometry vertex data.
-                _geometryVbOutputSbBinding = ReservedStorageBuffers++;
+                GeometryVertexOutputStorageBufferBinding = ReservedStorageBuffers++;
 
                 // One storage buffer for the output geometry index data.
-                _geometryIbOutputSbBinding = ReservedStorageBuffers++;
+                GeometryIndexOutputStorageBufferBinding = ReservedStorageBuffers++;
 
                 // Enough textures reserved for all vertex attributes, plus the index buffer.
-                _indexBufferTextureBinding = ReservedTextures;
-                _topologyRemapBufferTextureBinding = ReservedTextures + 1;
+                IndexBufferTextureBinding = ReservedTextures;
+                TopologyRemapBufferTextureBinding = ReservedTextures + 1;
                 _vertexBufferTextureBaseBinding = ReservedTextures + 2;
                 ReservedTextures += 2 + MaxVertexBufferTextures;
             }
+        }
 
+        internal ResourceReservations(
+            IGpuAccessor gpuAccessor,
+            bool isTransformFeedbackEmulated,
+            bool vertexAsCompute,
+            IoUsage? vacInput,
+            IoUsage vacOutput) : this(isTransformFeedbackEmulated, vertexAsCompute)
+        {
             if (vertexAsCompute)
             {
                 _offsets = new();
@@ -152,36 +156,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int GetTfeBufferStorageBufferBinding(int bufferIndex)
         {
             return _tfeBufferSbBaseBinding + bufferIndex;
-        }
-
-        public int GetVertexInfoConstantBufferBinding()
-        {
-            return _vertexInfoCbBinding;
-        }
-
-        public int GetVertexOutputStorageBufferBinding()
-        {
-            return _vertexOutputSbBinding;
-        }
-
-        public int GetGeometryVertexOutputStorageBufferBinding()
-        {
-            return _geometryVbOutputSbBinding;
-        }
-
-        public int GetGeometryIndexOutputStorageBufferBinding()
-        {
-            return _geometryIbOutputSbBinding;
-        }
-
-        public int GetIndexBufferTextureBinding()
-        {
-            return _indexBufferTextureBinding;
-        }
-
-        public int GetTopologyRemapBufferTextureBinding()
-        {
-            return _topologyRemapBufferTextureBinding;
         }
 
         public int GetVertexBufferTextureBinding(int vaLocation)
