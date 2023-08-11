@@ -95,15 +95,10 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
         {
             _context.Renderer.Pipeline.SetProgram(_vertexAsCompute.HostProgram);
 
-            Span<int> vertexInfo = stackalloc int[8 + 32 * 4 * 2];
-
             int primitivesCount = VtgAsComputeContext.GetPrimitivesCount(_topology, _count);
 
-            vertexInfo[0] = _count;
-            vertexInfo[1] = _instanceCount;
-            vertexInfo[2] = _firstVertex;
-            vertexInfo[3] = _firstInstance;
-            vertexInfo[4] = primitivesCount;
+            _vacContext.VertexInfoBufferUpdater.SetVertexCounts(_count, _instanceCount, _firstVertex, _firstInstance);
+            _vacContext.VertexInfoBufferUpdater.SetGeometryCounts(primitivesCount);
 
             for (int index = 0; index < Constants.TotalVertexAttribs; index++)
             {
@@ -123,13 +118,9 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                     componentsCount = 4;
                 }
 
-                for (int c = 1; c < componentsCount; c++)
-                {
-                    vertexInfo[8 + index * 4 + c] = 1;
-                }
-
                 if (vertexAttrib.UnpackIsConstant())
                 {
+                    _vacContext.VertexInfoBufferUpdater.SetVertexStride(index, 0, componentsCount);
                     SetDummyBufferTexture(_vertexAsCompute.Reservations, index, format);
                     continue;
                 }
@@ -144,6 +135,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
                 if (!vertexBuffer.UnpackEnable() || !_channel.MemoryManager.IsMapped(address))
                 {
+                    _vacContext.VertexInfoBufferUpdater.SetVertexStride(index, 0, componentsCount);
                     SetDummyBufferTexture(_vertexAsCompute.Reservations, index, format);
                     continue;
                 }
@@ -164,27 +156,29 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
                 SetBufferTexture(_vertexAsCompute.Reservations, index, format, address - misalign, vbSize);
 
-                vertexInfo[8 + index * 4] = vbStride / componentSize;
-                vertexInfo[8 + 32 * 4 + index * 4] = (int)misalign / componentSize;
-                vertexInfo[8 + 32 * 4 + index * 4 + 1] = instanced ? vertexBuffer.Divisor : 0;
+                _vacContext.VertexInfoBufferUpdater.SetVertexStride(index, vbStride / componentSize, componentsCount);
+                _vacContext.VertexInfoBufferUpdater.SetVertexOffset(index, (int)misalign / componentSize, instanced ? vertexBuffer.Divisor : 0);
             }
 
             if (_indexed)
             {
-                SetIndexBufferTexture(_vertexAsCompute.Reservations, _firstIndex, _count, ref vertexInfo[7]);
+                SetIndexBufferTexture(_vertexAsCompute.Reservations, _firstIndex, _count, out int ibOffset);
+                _vacContext.VertexInfoBufferUpdater.SetIndexBufferOffset(ibOffset);
             }
             else
             {
                 SetSequentialIndexBufferTexture(_vertexAsCompute.Reservations, _count);
             }
 
-            int vertexInfoBinding = _vertexAsCompute.Reservations.GetVertexInfoConstantBufferBinding();
-            BufferRange vertexInfoRange = new(_vacContext.PushVertexInfo(vertexInfo), 0, vertexInfo.Length * sizeof(int));
+            int vertexInfoBinding = _vertexAsCompute.Reservations.VertexInfoConstantBufferBinding;
+            BufferRange vertexInfoRange = new(_vacContext.VertexInfoBufferUpdater.Handle, 0, VertexInfoBuffer.RequiredSize);
             _context.Renderer.Pipeline.SetUniformBuffers(stackalloc[] { new BufferAssignment(vertexInfoBinding, vertexInfoRange) });
 
-            int vertexDataBinding = _vertexAsCompute.Reservations.GetVertexOutputStorageBufferBinding();
+            int vertexDataBinding = _vertexAsCompute.Reservations.VertexOutputStorageBufferBinding;
             BufferRange vertexDataRange = _vacContext.GetVertexDataBufferRange(_vertexDataOffset, _vertexDataSize);
             _context.Renderer.Pipeline.SetStorageBuffers(stackalloc[] { new BufferAssignment(vertexDataBinding, vertexDataRange) });
+
+            _vacContext.VertexInfoBufferUpdater.Commit();
 
             _context.Renderer.Pipeline.DispatchCompute(
                 BitUtils.DivRoundUp(_count, ComputeLocalSize),
@@ -199,21 +193,17 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 return;
             }
 
-            Span<int> vertexInfo = stackalloc int[8];
-
             int primitivesCount = VtgAsComputeContext.GetPrimitivesCount(_topology, _count);
 
-            vertexInfo[0] = _count;
-            vertexInfo[1] = _instanceCount;
-            vertexInfo[2] = _firstVertex;
-            vertexInfo[3] = _firstInstance;
-            vertexInfo[4] = primitivesCount;
+            _vacContext.VertexInfoBufferUpdater.SetVertexCounts(_count, _instanceCount, _firstVertex, _firstInstance);
+            _vacContext.VertexInfoBufferUpdater.SetGeometryCounts(primitivesCount);
+            _vacContext.VertexInfoBufferUpdater.Commit();
 
-            int vertexInfoBinding = _vertexAsCompute.Reservations.GetVertexInfoConstantBufferBinding();
-            BufferRange vertexInfoRange = new(_vacContext.PushVertexInfo(vertexInfo), 0, vertexInfo.Length * sizeof(int));
+            int vertexInfoBinding = _vertexAsCompute.Reservations.VertexInfoConstantBufferBinding;
+            BufferRange vertexInfoRange = new(_vacContext.VertexInfoBufferUpdater.Handle, 0, VertexInfoBuffer.RequiredSize);
             _context.Renderer.Pipeline.SetUniformBuffers(stackalloc[] { new BufferAssignment(vertexInfoBinding, vertexInfoRange) });
 
-            int vertexDataBinding = _vertexAsCompute.Reservations.GetVertexOutputStorageBufferBinding();
+            int vertexDataBinding = _vertexAsCompute.Reservations.VertexOutputStorageBufferBinding;
 
             // Wait until compute is done.
             // TODO: Batch compute and draw operations to avoid pipeline stalls.
@@ -222,8 +212,8 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
             SetTopologyRemapBufferTexture(_geometryAsCompute.Reservations, _topology, _count);
 
-            int geometryVbBinding = _geometryAsCompute.Reservations.GetGeometryVertexOutputStorageBufferBinding();
-            int geometryIbBinding = _geometryAsCompute.Reservations.GetGeometryIndexOutputStorageBufferBinding();
+            int geometryVbBinding = _geometryAsCompute.Reservations.GeometryVertexOutputStorageBufferBinding;
+            int geometryIbBinding = _geometryAsCompute.Reservations.GeometryIndexOutputStorageBufferBinding;
 
             BufferRange vertexDataRange = _vacContext.GetVertexDataBufferRange(_vertexDataOffset, _vertexDataSize);
             BufferRange vertexBuffer = _vacContext.GetGeometryVertexDataBufferRange(_geometryVertexDataOffset, _geometryVertexDataSize);
@@ -244,7 +234,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
         public readonly void RunFragment()
         {
-            int vertexDataBinding = _vertexAsCompute.Reservations.GetVertexOutputStorageBufferBinding();
+            int vertexDataBinding = _vertexAsCompute.Reservations.VertexOutputStorageBufferBinding;
 
             _context.Renderer.Pipeline.Barrier();
 
@@ -317,7 +307,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.GetVertexBufferTextureBinding(index), bufferTexture, null);
         }
 
-        private readonly void SetIndexBufferTexture(ResourceReservations reservations, int firstIndex, int count, ref int misalignedOffset)
+        private readonly void SetIndexBufferTexture(ResourceReservations reservations, int firstIndex, int count, out int misalignedOffset)
         {
             ulong address = _state.State.IndexBufferState.Address.Pack();
             ulong indexOffset = (ulong)firstIndex;
@@ -356,7 +346,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             ITexture bufferTexture = _vacContext.EnsureBufferTexutre(0, format);
             bufferTexture.SetStorage(range);
 
-            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.GetIndexBufferTextureBinding(), bufferTexture, null);
+            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.IndexBufferTextureBinding, bufferTexture, null);
         }
 
         private readonly void SetTopologyRemapBufferTexture(ResourceReservations reservations, PrimitiveTopology topology, int count)
@@ -364,7 +354,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             ITexture bufferTexture = _vacContext.EnsureBufferTexutre(1, Format.R32Uint);
             bufferTexture.SetStorage(_vacContext.GetOrCreateTopologyRemapBuffer(topology, count));
 
-            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.GetTopologyRemapBufferTextureBinding(), bufferTexture, null);
+            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.TopologyRemapBufferTextureBinding, bufferTexture, null);
         }
 
         private readonly void SetSequentialIndexBufferTexture(ResourceReservations reservations, int count)
@@ -374,7 +364,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             ITexture bufferTexture = _vacContext.EnsureBufferTexutre(0, Format.R32Uint);
             bufferTexture.SetStorage(new BufferRange(sequentialIndexBuffer, 0, count * sizeof(uint)));
 
-            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.GetIndexBufferTextureBinding(), bufferTexture, null);
+            _context.Renderer.Pipeline.SetTextureAndSampler(ShaderStage.Compute, reservations.IndexBufferTextureBinding, bufferTexture, null);
         }
 
         private readonly ulong GetVertexBufferSize(ulong vbAddress, ulong vbEndAddress, int vbStride, bool indexed, bool instanced, int firstVertex, int vertexCount)

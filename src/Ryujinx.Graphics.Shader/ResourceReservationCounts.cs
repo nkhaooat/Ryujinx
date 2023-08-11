@@ -1,41 +1,22 @@
+using Ryujinx.Graphics.Shader.Translation;
+
 namespace Ryujinx.Graphics.Shader
 {
-    public struct ResourceReservationCounts
+    public readonly struct ResourceReservationCounts
     {
-        private const int TfeBuffersCount = 4;
-
-        private const int MaxVertexBufferTextures = 32;
-
-        public int ReservedConstantBuffers { get; }
-        public int ReservedStorageBuffers { get; }
-        public int ReservedTextures { get; }
-        public int ReservedImages { get; }
+        public readonly int ReservedConstantBuffers { get; }
+        public readonly int ReservedStorageBuffers { get; }
+        public readonly int ReservedTextures { get; }
+        public readonly int ReservedImages { get; }
 
         public ResourceReservationCounts(bool isTransformFeedbackEmulated, bool vertexAsCompute)
         {
-            // All stages reserves the first constant buffer binding for the support buffer.
-            ReservedConstantBuffers = 1;
-            ReservedStorageBuffers = 0;
-            ReservedTextures = 0;
-            ReservedImages = 0;
+            ResourceReservations reservations = new(isTransformFeedbackEmulated, vertexAsCompute);
 
-            if (isTransformFeedbackEmulated)
-            {
-                // Transform feedback emulation currently always uses 4 storage buffers.
-                ReservedStorageBuffers = TfeBuffersCount;
-            }
-
-            if (vertexAsCompute)
-            {
-                // One constant buffer reserved for vertex related state.
-                ReservedConstantBuffers++;
-
-                // One storage buffer for the output vertex data, two for geometry output vertex and index data.
-                ReservedStorageBuffers += 3;
-
-                // Enough textures reserved for all vertex attributes, plus the index and topology remap buffers.
-                ReservedTextures += 2 + MaxVertexBufferTextures;
-            }
+            ReservedConstantBuffers = reservations.ReservedConstantBuffers;
+            ReservedStorageBuffers = reservations.ReservedStorageBuffers;
+            ReservedTextures = reservations.ReservedTextures;
+            ReservedImages = reservations.ReservedImages;
         }
     }
 }

@@ -82,7 +82,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
         private readonly BufferTextureCache[] _bufferTextures;
         private BufferHandle _dummyBuffer;
-        private BufferHandle _vertexInfoBuffer;
         private Buffer _vertexDataBuffer;
         private Buffer _geometryVertexDataBuffer;
         private Buffer _geometryIndexDataBuffer;
@@ -91,11 +90,14 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
         private readonly Dictionary<PrimitiveTopology, IndexBuffer> _topologyRemapBuffers;
 
+        public VertexInfoBufferUpdater VertexInfoBufferUpdater { get; }
+
         public VtgAsComputeContext(GpuContext context)
         {
             _context = context;
             _bufferTextures = new BufferTextureCache[Constants.TotalVertexBuffers + 2];
             _topologyRemapBuffers = new();
+            VertexInfoBufferUpdater = new(context.Renderer);
         }
 
         public static int GetPrimitivesCount(PrimitiveTopology primitiveType, int count)
@@ -337,20 +339,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
         public ITexture EnsureBufferTexutre(int index, Format format)
         {
             return (_bufferTextures[index] ??= new()).Get(_context.Renderer, format);
-        }
-
-        public BufferHandle PushVertexInfo(ReadOnlySpan<int> data)
-        {
-            ReadOnlySpan<byte> dataAsByte = MemoryMarshal.Cast<int, byte>(data);
-
-            if (_vertexInfoBuffer == BufferHandle.Null)
-            {
-                _vertexInfoBuffer = _context.Renderer.CreateBuffer(dataAsByte.Length);
-            }
-
-            _context.Renderer.SetBufferData(_vertexInfoBuffer, 0, dataAsByte);
-
-            return _vertexInfoBuffer;
         }
 
         public (int, int) GetVertexDataBuffer(int size)

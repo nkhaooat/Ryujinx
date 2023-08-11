@@ -151,7 +151,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
 
         private static Operand GenerateVertexOffset(ResourceManager resourceManager, LinkedListNode<INode> node, int location, int component)
         {
-            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+            int vertexInfoCbBinding = resourceManager.Reservations.VertexInfoConstantBufferBinding;
 
             Operand vertexIdVr = Local();
             GenerateVertexIdVertexRateLoad(resourceManager, node, vertexIdVr);
@@ -164,14 +164,14 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 attributeOffset,
-                new[] { Const(vertexInfoCbBinding), Const(3), Const(location), Const(0) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexOffsets), Const(location), Const(0) }));
 
             Operand isInstanceRate = Local();
             node.List.AddBefore(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 isInstanceRate,
-                new[] { Const(vertexInfoCbBinding), Const(3), Const(location), Const(1) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexOffsets), Const(location), Const(1) }));
 
             Operand vertexId = Local();
             node.List.AddBefore(node, new Operation(
@@ -184,7 +184,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 vertexStride,
-                new[] { Const(vertexInfoCbBinding), Const(2), Const(location), Const(0) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexStrides), Const(location), Const(0) }));
 
             Operand vertexBaseOffset = Local();
             node.List.AddBefore(node, new Operation(Instruction.Multiply, vertexBaseOffset, new[] { vertexId, vertexStride }));
@@ -244,12 +244,12 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand src)
         {
             Operand componentExists = Local();
-            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+            int vertexInfoCbBinding = resourceManager.Reservations.VertexInfoConstantBufferBinding;
             node = node.List.AddAfter(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 componentExists,
-                new[] { Const(vertexInfoCbBinding), Const(2), Const(location), Const(component) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexStrides), Const(location), Const(component) }));
 
             return node.List.AddAfter(node, new Operation(
                 Instruction.ConditionalSelect,
@@ -259,24 +259,24 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
 
         private static LinkedListNode<INode> GenerateBaseVertexLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
         {
-            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+            int vertexInfoCbBinding = resourceManager.Reservations.VertexInfoConstantBufferBinding;
 
             return node.List.AddBefore(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 dest,
-                new[] { Const(vertexInfoCbBinding), Const(0), Const(2) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexCounts), Const(2) }));
         }
 
         private static LinkedListNode<INode> GenerateBaseInstanceLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
         {
-            int vertexInfoCbBinding = resourceManager.Reservations.GetVertexInfoConstantBufferBinding();
+            int vertexInfoCbBinding = resourceManager.Reservations.VertexInfoConstantBufferBinding;
 
             return node.List.AddBefore(node, new Operation(
                 Instruction.Load,
                 StorageKind.ConstantBuffer,
                 dest,
-                new[] { Const(vertexInfoCbBinding), Const(0), Const(3) }));
+                new[] { Const(vertexInfoCbBinding), Const((int)VertexInfoBufferField.VertexCounts), Const(3) }));
         }
 
         private static LinkedListNode<INode> GenerateVertexIndexLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)
