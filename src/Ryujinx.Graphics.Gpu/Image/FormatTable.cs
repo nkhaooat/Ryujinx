@@ -557,7 +557,7 @@ namespace Ryujinx.Graphics.Gpu.Image
 
         // Note: Some of those formats have been changed and requires conversion on the shader,
         // as GPUs don't support them when used as buffer texture format.
-        private static readonly Dictionary<VertexAttributeFormat, (Format, int)> _singleComponentAttribFormats = new Dictionary<VertexAttributeFormat, (Format, int)>()
+        private static readonly Dictionary<VertexAttributeFormat, (Format, int)> _singleComponentAttribFormats = new()
         {
             { VertexAttributeFormat.R8Unorm,             (Format.R8Unorm, 1)            },
             { VertexAttributeFormat.R8Snorm,             (Format.R8Snorm, 1)            },

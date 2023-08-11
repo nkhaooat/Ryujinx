@@ -1,14 +1,14 @@
 namespace Ryujinx.Graphics.Shader.Translation
 {
-    struct IoUsage
+    readonly struct IoUsage
     {
         private readonly FeatureFlags _usedFeatures;
 
-        public bool UsesRtLayer => _usedFeatures.HasFlag(FeatureFlags.RtLayer);
-        public bool UsesViewportIndex => _usedFeatures.HasFlag(FeatureFlags.ViewportIndex);
-        public bool UsesViewportMask => _usedFeatures.HasFlag(FeatureFlags.ViewportMask);
-        public byte ClipDistancesWritten { get; }
-        public int UserDefinedMap { get; }
+        public readonly bool UsesRtLayer => _usedFeatures.HasFlag(FeatureFlags.RtLayer);
+        public readonly bool UsesViewportIndex => _usedFeatures.HasFlag(FeatureFlags.ViewportIndex);
+        public readonly bool UsesViewportMask => _usedFeatures.HasFlag(FeatureFlags.ViewportMask);
+        public readonly byte ClipDistancesWritten { get; }
+        public readonly int UserDefinedMap { get; }
 
         public IoUsage(FeatureFlags usedFeatures, byte clipDistancesWritten, int userDefinedMap)
         {
@@ -17,7 +17,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             UserDefinedMap = userDefinedMap;
         }
 
-        public IoUsage Combine(IoUsage other)
+        public readonly IoUsage Combine(IoUsage other)
         {
             return new IoUsage(
                 _usedFeatures | other._usedFeatures,
