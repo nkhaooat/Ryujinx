@@ -287,7 +287,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             GenerateBaseVertexLoad(resourceManager, node, baseVertex);
             GenerateVertexIdVertexRateLoad(resourceManager, node, vertexId);
 
-            return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseVertex, vertexId }));
+            return node.List.AddBefore(node, new Operation(Instruction.Add, dest, new[] { baseVertex, vertexId }));
         }
 
         private static LinkedListNode<INode> GenerateInstanceIndexLoad(ResourceManager resourceManager, LinkedListNode<INode> node, Operand dest)

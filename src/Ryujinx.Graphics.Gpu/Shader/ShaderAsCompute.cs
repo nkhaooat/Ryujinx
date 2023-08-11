@@ -10,7 +10,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
         public ShaderProgramInfo Info { get; }
         public ResourceReservations Reservations { get; }
 
-        public ShaderAsCompute(IProgram hostProgram, ShaderProgramInfo info,  ResourceReservations reservations)
+        public ShaderAsCompute(IProgram hostProgram, ShaderProgramInfo info, ResourceReservations reservations)
         {
             HostProgram = hostProgram;
             Info = info;
