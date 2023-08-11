@@ -285,7 +285,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             node.List.AddBefore(node, new Operation(Instruction.Multiply, baseVertex, new[] { instanceIndex, vertexCount }));
 
             Operand vertexIndex = Local();
-            node.List.AddBefore(node, new Operation( Instruction.Add, vertexIndex, new[] { baseVertex, primInputVertex }));
+            node.List.AddBefore(node, new Operation(Instruction.Add, vertexIndex, new[] { baseVertex, primInputVertex }));
 
             Operand vertexBaseOffset = Local();
             node.List.AddBefore(node, new Operation(
@@ -337,7 +337,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
             Operand baseVertex = Local();
             node.List.AddBefore(node, new Operation(Instruction.Multiply, baseVertex, new[] { instanceIndex, vertexCount }));
 
-            return node.List.AddBefore(node, new Operation( Instruction.Add, dest, new[] { baseVertex, vertexIndex }));
+            return node.List.AddBefore(node, new Operation(Instruction.Add, dest, new[] { baseVertex, vertexIndex }));
         }
 
         private static LinkedListNode<INode> GenerateInvocationId(LinkedListNode<INode> node, Operand dest)
