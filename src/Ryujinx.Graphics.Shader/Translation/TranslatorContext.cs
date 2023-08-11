@@ -313,8 +313,6 @@ namespace Ryujinx.Graphics.Shader.Translation
                 funcs[i] = new Function(cfg.Blocks, $"fun{i}", false, inArgumentsCount, outArgumentsCount);
             }
 
-            var identification = ShaderIdentifier.Identify(funcs, GpuAccessor, Definitions.Stage, Definitions.InputTopology, out int layerInputAttr);
-
             return Generate(
                 funcs,
                 AttributeUsage,
@@ -322,9 +320,7 @@ namespace Ryujinx.Graphics.Shader.Translation
                 Definitions,
                 resourceManager,
                 usedFeatures,
-                clipDistancesWritten,
-                identification,
-                layerInputAttr);
+                clipDistancesWritten);
         }
 
         private ShaderProgram Generate(
@@ -334,9 +330,7 @@ namespace Ryujinx.Graphics.Shader.Translation
             ShaderDefinitions originalDefinitions,
             ResourceManager resourceManager,
             FeatureFlags usedFeatures,
-            byte clipDistancesWritten,
-            ShaderIdentification identification = ShaderIdentification.None,
-            int layerInputAttr = 0)
+            byte clipDistancesWritten)
         {
             var sInfo = StructuredProgram.MakeStructuredProgram(
                 funcs,
@@ -357,8 +351,6 @@ namespace Ryujinx.Graphics.Shader.Translation
                 resourceManager.GetStorageBufferDescriptors(),
                 resourceManager.GetTextureDescriptors(),
                 resourceManager.GetImageDescriptors(),
-                identification,
-                layerInputAttr,
                 originalDefinitions.Stage,
                 geometryVerticesPerPrimitive,
                 originalDefinitions.MaxOutputVertices,
