@@ -220,6 +220,66 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Sets offset for the misaligned portion of a transform feedback buffer, and the buffer size, for transform feedback emulation.
+        /// </summary>
+        /// <param name="bufferIndex">Index of the transform feedback buffer</param>
+        /// <param name="offset">Misaligned offset of the buffer</param>
+        /// <param name="size">Size of the buffer</param>
+        public void SetTfeOffsetAndSize(int bufferIndex, int offset, int size)
+        {
+            ref int currentOffset = ref GetElementRef(ref _data.TfeOffset, bufferIndex);
+            ref int currentSize = ref GetElementRef(ref _data.TfeSize, bufferIndex);
+
+            if (currentOffset != offset)
+            {
+                currentOffset = offset;
+                MarkDirty(SupportBuffer.TfeOffsetOffset + bufferIndex * sizeof(int), sizeof(int));
+            }
+
+            if (currentSize != size)
+            {
+                currentSize = size;
+                MarkDirty(SupportBuffer.TfeSizeOffset + bufferIndex * sizeof(int), sizeof(int));
+            }
+        }
+
+        /// <summary>
+        /// Sets the vertex count used for transform feedback emulation with instanced draws.
+        /// </summary>
+        /// <param name="vertexCount">Vertex count of the instanced draw</param>
+        public void SetTfeVertexCount(int vertexCount)
+        {
+            if (_data.TfeVertexCount.X != vertexCount)
+            {
+                _data.TfeVertexCount.X = vertexCount;
+                MarkDirty(SupportBuffer.TfeVertexCountOffset, sizeof(int));
+            }
+        }
+
+        /// <summary>
+        /// Gets a reference to a given element of a vector.
+        /// </summary>
+        /// <param name="vector">Vector to get the element reference from</param>
+        /// <param name="elementIndex">Element index</param>
+        /// <returns>Reference to the specified element</returns>
+        private static ref T GetElementRef<T>(ref Vector4<T> vector, int elementIndex)
+        {
+            switch (elementIndex)
+            {
+                case 0:
+                    return ref vector.X;
+                case 1:
+                    return ref vector.Y;
+                case 2:
+                    return ref vector.Z;
+                case 3:
+                    return ref vector.W;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(elementIndex));
+            }
+        }
+
+        /// <summary>
         /// Submits all pending buffer updates to the GPU.
         /// </summary>
         public void Commit()

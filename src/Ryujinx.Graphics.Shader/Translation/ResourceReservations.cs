@@ -19,7 +19,6 @@ namespace Ryujinx.Graphics.Shader.Translation
         public int OutputSizePerInvocation { get; }
         public int OutputSizeInBytesPerInvocation => OutputSizePerInvocation * sizeof(uint);
 
-        private readonly int _tfeInfoSbBinding;
         private readonly int _tfeBufferSbBaseBinding;
         private readonly int _vertexInfoCbBinding;
         private readonly int _vertexOutputSbBinding;
@@ -47,10 +46,9 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (isTransformFeedbackEmulated)
             {
-                // Transform feedback emulation currently always uses 5 storage buffers.
-                _tfeInfoSbBinding = ReservedStorageBuffers;
-                _tfeBufferSbBaseBinding = ReservedStorageBuffers + 1;
-                ReservedStorageBuffers = 1 + TfeBuffersCount;
+                // Transform feedback emulation currently always uses 4 storage buffers.
+                _tfeBufferSbBaseBinding = ReservedStorageBuffers;
+                ReservedStorageBuffers = TfeBuffersCount;
             }
 
             if (vertexAsCompute)
@@ -149,11 +147,6 @@ namespace Ryujinx.Graphics.Shader.Translation
                 IoVariable.Position => true,
                 _ => false,
             };
-        }
-
-        public int GetTfeInfoStorageBufferBinding()
-        {
-            return _tfeInfoSbBinding;
         }
 
         public int GetTfeBufferStorageBufferBinding(int bufferIndex)

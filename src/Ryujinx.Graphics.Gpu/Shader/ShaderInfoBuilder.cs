@@ -60,9 +60,6 @@ namespace Ryujinx.Graphics.Gpu.Shader
                 _resourceUsages[index] = new();
             }
 
-            AddDescriptor(SupportBufferStages, ResourceType.UniformBuffer, UniformSetIndex, 0, 1);
-            AddUsage(SupportBufferStages, ResourceType.UniformBuffer, ResourceAccess.Read, UniformSetIndex, 0, 1);
-
             ResourceReservationCounts rrc = new(!context.Capabilities.SupportsTransformFeedback && tfEnabled, vertexAsCompute);
 
             _reservedConstantBuffers = rrc.ReservedConstantBuffers;
@@ -73,7 +70,7 @@ namespace Ryujinx.Graphics.Gpu.Shader
             // TODO: Handle that better? Maybe we should only set the binding that are really needed on each shader.
             ResourceStages stages = vertexAsCompute ? ResourceStages.Compute | ResourceStages.Vertex : VtgStages;
 
-            PopulateDescriptorAndUsages(stages, ResourceType.UniformBuffer, ResourceAccess.Read, UniformSetIndex, 1, rrc.ReservedConstantBuffers - 1);
+            PopulateDescriptorAndUsages(stages, ResourceType.UniformBuffer, ResourceAccess.Read, UniformSetIndex, 0, rrc.ReservedConstantBuffers);
             PopulateDescriptorAndUsages(stages, ResourceType.StorageBuffer, ResourceAccess.ReadWrite, StorageSetIndex, 0, rrc.ReservedStorageBuffers);
             PopulateDescriptorAndUsages(stages, ResourceType.BufferTexture, ResourceAccess.Read, TextureSetIndex, 0, rrc.ReservedTextures);
             PopulateDescriptorAndUsages(stages, ResourceType.BufferImage, ResourceAccess.ReadWrite, ImageSetIndex, 0, rrc.ReservedImages);

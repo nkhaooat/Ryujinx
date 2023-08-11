@@ -584,9 +584,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         {
             if (instanceCount > 1)
             {
-                // Must be called after UpdateState as it assumes the shader state
-                // has already been set, and that bindings have been updated already.
-
                 _channel.BufferManager.SetInstancedDrawVertexCount(count);
             }
 

@@ -242,16 +242,15 @@ namespace Ryujinx.Graphics.Shader.Translation
                 TranslatorContext.GpuAccessor.QueryTransformFeedbackEnabled() &&
                 !TranslatorContext.UsedFeatures.HasFlag(FeatureFlags.VtgAsCompute))
             {
-                int tfeInfoBinding = ResourceManager.Reservations.GetTfeInfoStorageBufferBinding();
-
-                Operand vertexCount = this.Load(StorageKind.StorageBuffer, tfeInfoBinding, Const(1));
+                Operand vertexCount = this.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeVertexCount));
 
                 for (int tfbIndex = 0; tfbIndex < ResourceReservations.TfeBuffersCount; tfbIndex++)
                 {
                     var locations = TranslatorContext.GpuAccessor.QueryTransformFeedbackVaryingLocations(tfbIndex);
                     var stride = TranslatorContext.GpuAccessor.QueryTransformFeedbackStride(tfbIndex);
 
-                    Operand baseOffset = this.Load(StorageKind.StorageBuffer, tfeInfoBinding, Const(0), Const(tfbIndex));
+                    Operand baseOffset = this.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeOffset), Const(tfbIndex));
+                    Operand size = this.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeSize), Const(tfbIndex));
                     Operand baseVertex = this.Load(StorageKind.Input, IoVariable.BaseVertex);
                     Operand baseInstance = this.Load(StorageKind.Input, IoVariable.BaseInstance);
                     Operand vertexIndex = this.Load(StorageKind.Input, IoVariable.VertexIndex);
@@ -274,11 +273,17 @@ namespace Ryujinx.Graphics.Shader.Translation
                         }
 
                         Operand offset = this.IAdd(baseOffset, Const(j));
+
+                        Operand lblOutOfRange = Label();
+                        this.BranchIfFalse(lblOutOfRange, this.ICompareLess(offset, size));
+
                         Operand value = Instructions.AttributeMap.GenerateAttributeLoad(this, null, location * 4, isOutput: true, isPerPatch: false);
 
                         int binding = ResourceManager.Reservations.GetTfeBufferStorageBufferBinding(tfbIndex);
 
                         this.Store(StorageKind.StorageBuffer, binding, Const(0), offset, value);
+
+                        this.MarkLabel(lblOutOfRange);
                     }
                 }
             }

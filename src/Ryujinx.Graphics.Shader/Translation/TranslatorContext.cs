@@ -398,16 +398,6 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (isTransformFeedbackEmulated)
             {
-                StructureType tfeInfoStruct = new(new StructureField[]
-                {
-                    new StructureField(AggregateType.Array | AggregateType.U32, "base_offset", 4),
-                    new StructureField(AggregateType.U32, "vertex_count")
-                });
-
-                int tfeInfoSbBinding = resourceManager.Reservations.GetTfeInfoStorageBufferBinding();
-                BufferDefinition tfeInfoBuffer = new(BufferLayout.Std430, 1, tfeInfoSbBinding, "tfe_info", tfeInfoStruct);
-                resourceManager.Properties.AddOrUpdateStorageBuffer(tfeInfoBuffer);
-
                 StructureType tfeDataStruct = new(new StructureField[]
                 {
                     new StructureField(AggregateType.Array | AggregateType.U32, "data", 0)
@@ -542,7 +532,6 @@ namespace Ryujinx.Graphics.Shader.Translation
             int vertexDataSbBinding = reservations.GetVertexOutputStorageBufferBinding();
             int indexDataTexBinding = reservations.GetIndexBufferTextureBinding();
             int remapDataTexBinding = reservations.GetTopologyRemapBufferTextureBinding();
-            int tfeInfoSbBinding = reservations.GetTfeInfoStorageBufferBinding();
 
             StructureType vertexInfoStruct = new(new StructureField[]
             {
@@ -571,15 +560,6 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             TextureDefinition remapBuffer = new(2, remapDataTexBinding, "trb_data", SamplerType.TextureBuffer, TextureFormat.Unknown, TextureUsageFlags.None);
             resourceManager.Properties.AddOrUpdateTexture(remapBuffer);
-
-            StructureType tfeInfoStruct = new(new StructureField[]
-            {
-                new StructureField(AggregateType.Array | AggregateType.U32, "base_offset", 4),
-                new StructureField(AggregateType.U32, "vertex_count")
-            });
-
-            BufferDefinition tfeInfoBuffer = new(BufferLayout.Std430, 1, tfeInfoSbBinding, "tfe_info", tfeInfoStruct);
-            resourceManager.Properties.AddOrUpdateStorageBuffer(tfeInfoBuffer);
 
             StructureType tfeDataStruct = new(new StructureField[]
             {
@@ -679,6 +659,9 @@ namespace Ryujinx.Graphics.Shader.Translation
                 };
             }
 
+            Operand lblLoopEnd = Label();
+            context.BranchIfTrue(lblLoopEnd, context.ICompareLessOrEqual(vertexCount, Const(0)));
+
             // Second inner loop:
             // Write output vertices for a batch of primitives into the transform feedback buffer.
 
@@ -717,9 +700,10 @@ namespace Ryujinx.Graphics.Shader.Translation
                 var locations = GpuAccessor.QueryTransformFeedbackVaryingLocations(tfbIndex);
                 var stride = GpuAccessor.QueryTransformFeedbackStride(tfbIndex);
 
-                Operand outputBaseOffset = context.Load(StorageKind.StorageBuffer, tfeInfoSbBinding, Const(0), Const(tfbIndex));
+                Operand outputBaseOffset = context.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeOffset), Const(tfbIndex));
+                Operand outputSize = context.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeSize), Const(tfbIndex));
                 Operand instanceOffset = context.Load(StorageKind.Input, IoVariable.GlobalInvocationId, null, Const(0));
-                Operand verticesPerInstance = context.Load(StorageKind.StorageBuffer, tfeInfoSbBinding, Const(1));
+                Operand verticesPerInstance = context.Load(StorageKind.ConstantBuffer, SupportBuffer.Binding, Const((int)SupportBufferField.TfeVertexCount));
                 Operand baseVertex = context.IMultiply(instanceOffset, verticesPerInstance);
                 Operand outputVertexOffset = context.IMultiply(context.IAdd(baseVertex, outputVertex), Const(stride / 4));
                 outputBaseOffset = context.IAdd(outputBaseOffset, outputVertexOffset);
@@ -750,12 +734,18 @@ namespace Ryujinx.Graphics.Shader.Translation
                     }
 
                     Operand outputOffset = context.IAdd(outputBaseOffset, Const(j));
+
+                    Operand lblOutOfRange = Label();
+                    context.BranchIfFalse(lblOutOfRange, context.ICompareLess(outputOffset, outputSize));
+
                     Operand vertexOffset = inputOffset != 0 ? context.IAdd(inputBaseOffset, Const(inputOffset)) : inputBaseOffset;
                     Operand value = context.Load(StorageKind.StorageBuffer, vertexDataSbBinding, Const(0), vertexOffset);
 
                     int binding = reservations.GetTfeBufferStorageBufferBinding(tfbIndex);
 
                     context.Store(StorageKind.StorageBuffer, binding, Const(0), outputOffset, value);
+
+                    context.MarkLabel(lblOutOfRange);
                 }
             }
 
@@ -765,6 +755,8 @@ namespace Ryujinx.Graphics.Shader.Translation
             context.BranchIfTrue(lblFeedbackLoopHead, context.ICompareLess(currentVertex, vertexCount));
 
             // End of the main loop, continue until we reach the end of the index buffer.
+
+            context.MarkLabel(lblLoopEnd);
 
             Operand newBaseIndex = context.IAdd(baseIndex, indexCount);
 
