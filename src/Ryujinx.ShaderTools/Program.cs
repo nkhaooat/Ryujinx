@@ -35,9 +35,6 @@ namespace Ryujinx.ShaderTools
             [Option("vertex-passthrough", Required = false, Default = false, HelpText = "Indicate that the shader is a vertex passthrough shader for compute output.")]
             public bool VertexPassthrough { get; set; }
 
-            [Option("vertex-feedback", Required = false, Default = false, HelpText = "Indicate that the shader is a transform feedback shader for compute output.")]
-            public bool VertexFeedback { get; set; }
-
             [Option("target-language", Required = false, Default = TargetLanguage.Glsl, HelpText = "Indicate the target shader language to use.")]
             public TargetLanguage TargetLanguage { get; set; }
 
@@ -70,10 +67,6 @@ namespace Ryujinx.ShaderTools
             if (options.VertexPassthrough)
             {
                 program = translatorContext.GenerateVertexPassthroughForCompute();
-            }
-            else if (options.VertexFeedback)
-            {
-                program = translatorContext.GenerateFeedbackForCompute();
             }
             else
             {
