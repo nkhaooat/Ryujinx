@@ -12,7 +12,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 
         private readonly GpuContext _context;
 
-        private class BufferTextureCache
+        private class BufferTextureCache : IDisposable
         {
             private readonly Dictionary<Format, ITexture> _cache;
 
