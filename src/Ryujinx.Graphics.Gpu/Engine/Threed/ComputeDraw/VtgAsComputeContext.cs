@@ -459,11 +459,6 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
         {
             if (disposing)
             {
-                foreach (var bufferTextureCache in _bufferTextures)
-                {
-                    bufferTextureCache?.Dispose();
-                }
-
                 for (int index = 0; index < _bufferTextures.Length; index++)
                 {
                     _bufferTextures[index]?.Dispose();
