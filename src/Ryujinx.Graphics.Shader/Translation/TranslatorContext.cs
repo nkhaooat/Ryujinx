@@ -8,7 +8,6 @@ using Ryujinx.Graphics.Shader.Translation.Optimizations;
 using Ryujinx.Graphics.Shader.Translation.Transforms;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using static Ryujinx.Graphics.Shader.IntermediateRepresentation.OperandHelper;
 using static Ryujinx.Graphics.Shader.Translation.Translator;
@@ -537,7 +536,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (Stage == ShaderStage.Vertex)
             {
-                Operand vertexCount = context.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const(0), Const(0));
+                Operand vertexCount = context.Load(StorageKind.ConstantBuffer, vertexInfoCbBinding, Const((int)VertexInfoBufferField.VertexCounts), Const(0));
 
                 // Base instance will be always zero when this shader is used, so which one we use here doesn't really matter.
                 Operand instanceId = Options.TargetApi == TargetApi.OpenGL

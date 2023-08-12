@@ -1,9 +1,10 @@
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Shader;
+using System;
 
 namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 {
-    class VtgAsCompute
+    class VtgAsCompute : IDisposable
     {
         private readonly GpuContext _context;
         private readonly GpuChannel _channel;
@@ -53,6 +54,20 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             state.RunFragment();
 
             _vacContext.FreeBuffers();
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _vacContext.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

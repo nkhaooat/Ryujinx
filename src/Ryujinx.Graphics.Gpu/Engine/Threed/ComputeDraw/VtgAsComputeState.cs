@@ -121,6 +121,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 if (vertexAttrib.UnpackIsConstant())
                 {
                     _vacContext.VertexInfoBufferUpdater.SetVertexStride(index, 0, componentsCount);
+                    _vacContext.VertexInfoBufferUpdater.SetVertexOffset(index, 0, 0);
                     SetDummyBufferTexture(_vertexAsCompute.Reservations, index, format);
                     continue;
                 }
@@ -136,6 +137,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 if (!vertexBuffer.UnpackEnable() || !_channel.MemoryManager.IsMapped(address))
                 {
                     _vacContext.VertexInfoBufferUpdater.SetVertexStride(index, 0, componentsCount);
+                    _vacContext.VertexInfoBufferUpdater.SetVertexOffset(index, 0, 0);
                     SetDummyBufferTexture(_vertexAsCompute.Reservations, index, format);
                     continue;
                 }
@@ -168,6 +170,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             else
             {
                 SetSequentialIndexBufferTexture(_vertexAsCompute.Reservations, _count);
+                _vacContext.VertexInfoBufferUpdater.SetIndexBufferOffset(0);
             }
 
             int vertexInfoBinding = _vertexAsCompute.Reservations.VertexInfoConstantBufferBinding;
@@ -243,6 +246,9 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 // No need to run fragment if rasterizer discard is enabled, and we are emulating transform feedback.
                 return;
             }
+
+            _vacContext.VertexInfoBufferUpdater.SetVertexCounts(_count, _instanceCount, _firstVertex, _firstInstance);
+            _vacContext.VertexInfoBufferUpdater.Commit();
 
             if (_geometryAsCompute != null)
             {
