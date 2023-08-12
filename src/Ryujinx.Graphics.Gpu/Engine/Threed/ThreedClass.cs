@@ -13,7 +13,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
     /// <summary>
     /// Represents a 3D engine class.
     /// </summary>
-    class ThreedClass : IDeviceState
+    class ThreedClass : IDeviceState, IDisposable
     {
         private readonly GpuContext _context;
         private readonly GPFifoClass _fifoClass;
@@ -625,6 +625,20 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
         public void Clear(int argument, int layerCount)
         {
             _drawManager.Clear(this, argument, layerCount);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _drawManager.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

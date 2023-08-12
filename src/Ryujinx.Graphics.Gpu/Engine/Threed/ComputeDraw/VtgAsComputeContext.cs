@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
 {
-    class VtgAsComputeContext
+    class VtgAsComputeContext : IDisposable
     {
         private const int DummyBufferSize = 16;
 
@@ -46,6 +46,25 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
                 }
 
                 return bufferTexture;
+            }
+
+            protected virtual void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    foreach (var texture in _cache.Values)
+                    {
+                        texture.Release();
+                    }
+
+                    _cache.Clear();
+                }
+            }
+
+            public void Dispose()
+            {
+                Dispose(true);
+                GC.SuppressFinalize(this);
             }
         }
 
@@ -434,6 +453,51 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed.ComputeDraw
             _vertexDataBuffer.Offset = 0;
             _geometryVertexDataBuffer.Offset = 0;
             _geometryIndexDataBuffer.Offset = 0;
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var bufferTextureCache in _bufferTextures)
+                {
+                    bufferTextureCache?.Dispose();
+                }
+
+                for (int index = 0; index < _bufferTextures.Length; index++)
+                {
+                    _bufferTextures[index]?.Dispose();
+                    _bufferTextures[index] = null;
+                }
+
+                DestroyIfNotNull(ref _dummyBuffer);
+                DestroyIfNotNull(ref _vertexDataBuffer.Handle);
+                DestroyIfNotNull(ref _geometryVertexDataBuffer.Handle);
+                DestroyIfNotNull(ref _geometryIndexDataBuffer.Handle);
+                DestroyIfNotNull(ref _sequentialIndexBuffer);
+
+                foreach (var indexBuffer in _topologyRemapBuffers.Values)
+                {
+                    _context.Renderer.DeleteBuffer(indexBuffer.Handle);
+                }
+
+                _topologyRemapBuffers.Clear();
+            }
+        }
+
+        private void DestroyIfNotNull(ref BufferHandle handle)
+        {
+            if (handle != BufferHandle.Null)
+            {
+                _context.Renderer.DeleteBuffer(handle);
+                handle = BufferHandle.Null;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

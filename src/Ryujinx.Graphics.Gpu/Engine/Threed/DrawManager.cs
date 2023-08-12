@@ -9,7 +9,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
     /// <summary>
     /// Draw manager.
     /// </summary>
-    class DrawManager
+    class DrawManager : IDisposable
     {
         // Since we don't know the index buffer size for indirect draws,
         // we must assume a minimum and maximum size and use that for buffer data update purposes.
@@ -926,6 +926,20 @@ namespace Ryujinx.Graphics.Gpu.Engine.Threed
             {
                 _context.Renderer.Pipeline.EndHostConditionalRendering();
             }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _vtgAsCompute.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }
