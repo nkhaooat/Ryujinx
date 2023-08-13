@@ -64,7 +64,31 @@ namespace Ryujinx.Graphics.Shader.Instructions
                     }
                     else
                     {
-                        context.Copy(Register(rd), AttributeMap.GenerateAttributeLoad(context, primVertex, offset, isOutput, op.P));
+                        value = AttributeMap.GenerateAttributeLoad(context, primVertex, offset, isOutput, op.P);
+
+                        if (!context.Config.GpuAccessor.QueryHostSupportsScaledVertexFormats() &&
+                            context.Config.Stage == ShaderStage.Vertex &&
+                            !op.O &&
+                            offset >= 0x80 &&
+                            offset < 0x280)
+                        {
+                            // The host does not support scaled vertex formats,
+                            // the emulator should use a integer format, and
+                            // we compensate here inserting the conversion to float.
+
+                            AttributeType type = context.Config.GpuAccessor.QueryAttributeType((offset - 0x80) >> 4);
+
+                            if (type == AttributeType.Sscaled)
+                            {
+                                value = context.IConvertS32ToFP32(value);
+                            }
+                            else if (type == AttributeType.Uscaled)
+                            {
+                                value = context.IConvertU32ToFP32(value);
+                            }
+                        }
+
+                        context.Copy(Register(rd), value);
                     }
                 }
                 else

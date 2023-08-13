@@ -354,7 +354,7 @@ namespace Ryujinx.Graphics.Shader.Translation
 
             if (Stage == ShaderStage.Vertex && !isOutput)
             {
-                type |= GpuAccessor.QueryAttributeType(location).ToAggregateType();
+                type |= GpuAccessor.QueryAttributeType(location).ToAggregateType(GpuAccessor.QueryHostSupportsScaledVertexFormats());
             }
             else
             {

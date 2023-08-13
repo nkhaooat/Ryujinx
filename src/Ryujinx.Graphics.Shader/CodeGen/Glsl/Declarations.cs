@@ -521,7 +521,8 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
 
                 if (context.Config.Stage == ShaderStage.Vertex)
                 {
-                    type = context.Config.GpuAccessor.QueryAttributeType(attr).ToVec4Type();
+                    bool supportsScaledFormats = context.Config.GpuAccessor.QueryHostSupportsScaledVertexFormats();
+                    type = context.Config.GpuAccessor.QueryAttributeType(attr).ToVec4Type(supportsScaledFormats);
                 }
                 else
                 {
